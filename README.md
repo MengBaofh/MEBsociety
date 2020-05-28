@@ -2,7 +2,7 @@
 # More:
 Author:MengBao(fh)
 
-Reprinting is prohibited without permissiono!
+Reprinting is prohibited without permission!
 
 Plug-in open source.
 
