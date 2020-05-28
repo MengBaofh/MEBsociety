@@ -2,6 +2,8 @@
 # More:
 Author:MengBao(fh)
 
+API:3.0.0-4.0.0
+
 Reprinting is prohibited without permission!
 
 Plug-in open source.
