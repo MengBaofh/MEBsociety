@@ -34,53 +34,54 @@ class API
                 $json=$this->prefixmain();
                 break;
         }
-	    $pk = new ModalFormRequestPacket();
+	$pk = new ModalFormRequestPacket();
         $pk->formId = $id;
         $pk->formData = $json;
         $player->dataPacket($pk);
     }
     public function Main()
     {
-		$data=[];
-		$data["type"]="form";
-		$data["title"]="§b===§bGUI商店系统§b===";//最上面
-		$data["content"]="§e您是要...";
-		$first["text"]="§a点击进入§6出售商店(卖)";
-		$data["buttons"][]=$first;
+        $data = [];
+        $data["type"] = "form";
+	$data["title"] = "§b===§bGUI商店系统§b===";
+	$data["content"] = "§e您是要...";
+	$first["text"] = "§a点击进入§6出售商店(卖)";
+	$data["buttons"][] = $first;
 
-		$sec["text"]="§a点击进入§b购买商店(买)";
-		$data["buttons"][]=$sec;
+	$sec["text"] = "§a点击进入§b购买商店(买)";
+	$data["buttons"][] = $sec;
 
-		$th["text"]="§a点击进入§e称号商店";
-		$data["buttons"][]=$th;
+	$th["text"] = "§a点击进入§e称号商店";
+	$data["buttons"][] = $th;
 		
-		$json = $this->getEncodedJson($data);//不能少
-		return $json;//不能少
+	$json = $this->getEncodedJson($data);
+	return $json;
     }
-	public function sellmain()
-	{
+    public function sellmain()
+    {
+	$data=[];
+	$data["type"]="form";
+	$data["title"]="§l§b===§l§6GUI出售商店§l§b===";
+	$data["content"]="§e§m选择你要出售的物品吧";
+	$sellcfg=main::getInstance()->getSellcfg();
+	foreach($sellcfg as $key=>$v)
+        {
+            $text=$v["text"];
+	    $type=$v["type"];
+            $datas=$v["data"];
+            $first["text"]="$text";
+            $first["image"]["type"] = "$type";
+            $first["image"]["data"] = "$datas";
+            $data["buttons"][]=$first;
+        }
+        $json = $this->getEncodedJson($data);
+        return $json;
+    }
+    public function purchasemain()
+    {
 		$data=[];
 		$data["type"]="form";
-		$data["title"]="§l§b===§l§6GUI出售商店§l§b===";//最上面
-		$data["content"]="§e§m选择你要出售的物品吧";
-		$sellcfg=main::getInstance()->getSellcfg();
-		foreach($sellcfg as $key=>$v){
-		    $text=$v["text"];
-		    $type=$v["type"];
-		    $datas=$v["data"];
-		    $first["text"]="$text";
-		    $first["image"]["type"] = "$type";
-		    $first["image"]["data"] = "$datas";
-		    $data["buttons"][]=$first;
-		}
-		$json = $this->getEncodedJson($data);
-		return $json;//不能少
-	}
-	public function purchasemain()
-	{
-		$data=[];
-		$data["type"]="form";
-		$data["title"]="§l§b===§l§dGUI购买商店§l§b===";//最上面
+		$data["title"]="§l§b===§l§dGUI购买商店§l§b===";
 		$data["content"]="§e§m选择你喜欢的物品买下吧";
 		$purcfg=main::getInstance()->getPurcfg();
 		foreach($purcfg as $key=>$v){
@@ -92,8 +93,8 @@ class API
 		    $first["image"]["data"] = "$datas";
 		    $data["buttons"][]=$first;
 		}
-		$json = $this->getEncodedJson($data);//不能少
-		return $json;//不能少
+		$json = $this->getEncodedJson($data);
+		return $json;
 	}
 	public function prefixmain()
 	{
@@ -115,8 +116,8 @@ class API
 		    $first["text"]="$text";
 		    $data["buttons"][]=$first;
 		}
-		$json = $this->getEncodedJson($data);//不能少
-		return $json;//不能少
+		$json = $this->getEncodedJson($data);
+		return $json;
 	}
 	public function getOwner()
 	{
