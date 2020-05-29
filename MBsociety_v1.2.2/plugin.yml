@@ -43,7 +43,7 @@ commands:
 permissions:
  plugin.a:
   default: true
-  description: 普通指令
+  description: 普通玩家指令
  plugin.b:
   default: op
   description: op指令
