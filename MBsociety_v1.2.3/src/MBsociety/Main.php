@@ -205,16 +205,17 @@ class Main extends PluginBase implements Listener
 			}
 		}
 	}
-	public function onPlayerJoin(PlayerJoinEvent $event)
-	{
-		$hc = "\n";
-		$name = $event->getPlayer()->getName();
-		if ($this->config->get($name) != null) {
-			$event->getplayer->sendMessage(str_replace('《回车》', $hc, $this->config->get($name)));
-			$this->config->set($name, null);
-			$this->config->save();
-		}
-	}
+        //以前的留言系统，现在已删除，这部分是残余代码，可无视。
+	//public function onPlayerJoin(PlayerJoinEvent $event)
+	//{
+	//	$hc = "\n";
+	//	$name = $event->getPlayer()->getName();
+	//	if ($this->config->get($name) != null) {
+	//		$event->getplayer->sendMessage(str_replace('《回车》', $hc, $this->config->get($name)));
+	//		$this->config->set($name, null);
+	//		$this->config->save();
+	//	}
+	//}
 	/**
 	 * guild_name
 	 */
