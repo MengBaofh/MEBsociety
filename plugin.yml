@@ -1,0 +1,55 @@
+name: MEBsociety
+main: MengBao\MEBsociety\Main
+version: 2.0.0
+api: 
+- 5.0.0
+load: POSTWORLD
+author: MengBao
+website: https://github.com/MengBaofh/MEBsociety
+description: Campsites, marriage, vip and its management, op management, title, GUI store, bottom, chat and ...
+commands:
+ mebhelp:
+  description: Show the usage of each MEBS command
+  permission: plugin.ge
+  usage: '/mebhelp'
+ campsite:
+  description: Managing MEBS campsite
+  permission: plugin.ge
+  usage: '/campsite help'
+ money:
+  description: Managing MEBS money
+  permission: plugin.ge
+  usage: '/money help'
+ mw:
+  description: Managing MEBS worlds and transferring to another world
+  permission: plugin.ge
+  usage: '/mw help'
+ cohabitant:
+  description: Managing MEBS cohabitant
+  permission: plugin.ge
+  usage: '/cohabitant help'
+ mebop:
+  description: Managing MEBS op
+  permission: plugin.op
+  usage: '/mebop help'
+ mebvip:
+  description: Managing MEBS vip
+  permission: plugin.ge
+  usage: '/mebvip help'
+ mebsvip:
+  description: Managing MEBS svip
+  permission: plugin.ge
+  usage: '/mebsvip help'
+ mebpre:
+  description: Managing MEBS prefix
+  permission: plugin.ge
+  usage: '/mebpre help'
+
+permissions:
+ plugin.ge:
+  default: true
+  description: General command
+ plugin.op:
+  default: op
+  description: Op command
+ 
