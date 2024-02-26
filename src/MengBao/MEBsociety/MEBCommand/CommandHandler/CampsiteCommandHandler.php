@@ -93,7 +93,7 @@ class CampsiteCommandHandler implements CommandHandlerInterface
         $sender->sendMessage("§e> /" . $c_name . " sethome --- 设置营地入口传送点");
         $sender->sendMessage("§e> /" . $c_name . " gohome --- 传送到营地入口");
         $sender->sendMessage("§e> /" . $c_name . " transfer <player_name> --- 将营地转让给某人");
-        $sender->sendMessage("§e> /" . $c_name . " call <all/yes/no> --- 召集营地所有成员/响应召集/拒绝召集");
+        $sender->sendMessage("§e> /" . $c_name . " call --- 召集营地所有成员");
         $sender->sendMessage("§e> /" . $c_name . " disband --- 解散营地");
         $sender->sendMessage("§e> /" . $c_name . " join <campsite_id> --- 申请加入营地");
         $sender->sendMessage("§e> /" . $c_name . " quit --- 退出营地");

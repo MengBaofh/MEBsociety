@@ -73,6 +73,10 @@ class OpCommandHandler implements CommandHandlerInterface
 
     public function master(CommandSender $sender, array $args): void
     {
+        if (!Players::getInstance($this->plugin)->isMaster(strtolower($sender->getName())) && !$sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
+            return;
+        }
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
             return;
@@ -98,6 +102,10 @@ class OpCommandHandler implements CommandHandlerInterface
 
     public function add(CommandSender $sender, array $args): void
     {
+        if (!Players::getInstance($this->plugin)->isMaster(strtolower($sender->getName())) && !$sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
+            return;
+        }
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
             return;
@@ -122,6 +130,10 @@ class OpCommandHandler implements CommandHandlerInterface
 
     public function del(CommandSender $sender, array $args): void
     {
+        if (!Players::getInstance($this->plugin)->isMaster(strtolower($sender->getName())) && !$sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
+            return;
+        }
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
             return;
@@ -146,6 +158,10 @@ class OpCommandHandler implements CommandHandlerInterface
 
     public function list(CommandSender $sender, array $args): void
     {
+        if (!Players::getInstance($this->plugin)->isMaster(strtolower($sender->getName())) && !$sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
+            return;
+        }
         if (!isset($args[1]))
             $page = 1;
         else
@@ -167,6 +183,10 @@ class OpCommandHandler implements CommandHandlerInterface
 
     public function licmd(CommandSender $sender, array $args): void
     {
+        if (!Players::getInstance($this->plugin)->isMaster(strtolower($sender->getName())) && !$sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
+            return;
+        }
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入要禁用的指令(指令前面不加'/')！");
             return;
@@ -181,8 +201,8 @@ class OpCommandHandler implements CommandHandlerInterface
 
     public function unlicmd(CommandSender $sender, array $args): void
     {
-        if (!isset($args[1])) {
-            $sender->sendMessage($this->logo . "§c未输入要禁用的指令(指令前面不加'/')！");
+        if (!Players::getInstance($this->plugin)->isMaster(strtolower($sender->getName())) && !$sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
             return;
         }
         if (!Players::getInstance($this->plugin)->isCmdLimited($args[1])) {

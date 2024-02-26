@@ -225,14 +225,14 @@ class Main extends PluginBase
     {
         if ($command->getName() === "mebhelp") {
             $sender->sendMessage("§c---§b" . $this->logo . "指令帮助§c---");
-            $sender->sendMessage("§e/money--游戏币管理指令");
-            $sender->sendMessage("§e/campsite--营地管理指令");
-            $sender->sendMessage("§e/结婚--结婚指令");
-            $sender->sendMessage("§e/称号--称号指令");
-            $sender->sendMessage("§e/Ushop--UI商店指令");
-            $sender->sendMessage("§e/myop--管理op指令");
-            $sender->sendMessage("§e/opvip--管理vip指令");
-            $sender->sendMessage("§e/vip--vip特权指令");
+            $sender->sendMessage("§e/money--游戏币指令");
+            $sender->sendMessage("§e/campsite--营地指令");
+            $sender->sendMessage("§e/cohabitant--同居指令");
+            $sender->sendMessage("§e/mebpre--称号指令");
+            $sender->sendMessage("§e/mw--多世界指令");
+            $sender->sendMessage("§e/mebop--管理op指令");
+            $sender->sendMessage("§e/mebvip--vip指令");
+            $sender->sendMessage("§e/mebsvip--svip指令");
             $sender->sendMessage("§c---------------------------");
             return true;
         }
@@ -245,44 +245,46 @@ class Main extends PluginBase
         date_default_timezone_set('Asia/Shanghai');
         foreach ($this->getServer()->getOnlinePlayers() as $player) {
             $playerName = strtolower($player->getName());
-            $money = Economy::getInstance($this)->getMoney($playerName);
-            $CID = Campsite::getInstance($this)->getCIDbyPlayerName($playerName);
-            $campsite = $CID === -1 ? "无营地" : Campsite::getInstance($this)->getCName($CID);
-            $CID = $CID === -1 ? "无营地" : $CID;
-            $world = $player->getWorld()->getFolderName();
-            $item = $player->getInventory()->getItemInHand();
-            $itemName = $item->getName();
-            $num = $item->getcount();
-            $rand = Players::getInstance($this)->getRand($playerName);
-            $cohabitant = Cohabitant::getInstance($this)->getCohabitant($playerName);
-            $cohabitant = $cohabitant === null ? "无同居" : $cohabitant;
-            $time = date('H:i:s');
-            $popupTemp = array(
-                "{online}",
-                "{money}",
-                "{item}",
-                "{num}",
-                "{rand}",
-                "{time}",
-                "{world}",
-                "{campsite}",
-                "{CID}",
-                "{cohabitant}"
-            );
-            $popupPara = array(
-                $online,
-                $money,
-                $itemName,
-                $num,
-                $rand,
-                $time,
-                $world,
-                $campsite,
-                $CID,
-                $cohabitant
-            );
-            $popup = str_replace($popupTemp, $popupPara, $this->msgConfig->get("底部格式"));
-            $player->sendPopup("$popup");
+            if (Players::getInstance($this)->playerExist($playerName)) {
+                $money = Economy::getInstance($this)->getMoney($playerName);
+                $CID = Campsite::getInstance($this)->getCIDbyPlayerName($playerName);
+                $campsite = $CID === -1 ? "无营地" : Campsite::getInstance($this)->getCName($CID);
+                $CID = $CID === -1 ? "无营地" : $CID;
+                $world = $player->getWorld()->getFolderName();
+                $item = $player->getInventory()->getItemInHand();
+                $itemName = $item->getName();
+                $num = $item->getcount();
+                $rand = Players::getInstance($this)->getRand($playerName);
+                $cohabitant = Cohabitant::getInstance($this)->getCohabitant($playerName);
+                $cohabitant = $cohabitant === null ? "无同居" : $cohabitant;
+                $time = date('H:i:s');
+                $popupTemp = array(
+                    "{online}",
+                    "{money}",
+                    "{item}",
+                    "{num}",
+                    "{rand}",
+                    "{time}",
+                    "{world}",
+                    "{campsite}",
+                    "{CID}",
+                    "{cohabitant}"
+                );
+                $popupPara = array(
+                    $online,
+                    $money,
+                    $itemName,
+                    $num,
+                    $rand,
+                    $time,
+                    $world,
+                    $campsite,
+                    $CID,
+                    $cohabitant
+                );
+                $popup = str_replace($popupTemp, $popupPara, $this->msgConfig->get("底部格式"));
+                $player->sendPopup("$popup");
+            }
         }
     }
 
