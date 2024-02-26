@@ -3,5 +3,5 @@
 Author:MengBao(fh)  
 API(The latest):5.x.x  
 # Introduction:
-Campsites, marriage, vip and its management, op management, title, GUI store, bottom, chat and ...  
+Campsites, cohabitant, vip/svip/op management, prefix, GUI store, popup, chatMsg and so on.  
 # PocketMine Plugin
