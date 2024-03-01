@@ -2,16 +2,22 @@
 
 namespace MengBao\MEBsociety;
 
+use pocketmine\player\Player;
 use pocketmine\utils\Config;
 use pocketmine\plugin\PluginBase;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 
+use MengBao\MEBsociety\GuiHandler;
 use MengBao\MEBsociety\Units\Players;
 use MengBao\MEBsociety\Units\Economy;
 use MengBao\MEBsociety\Units\Campsite;
 use MengBao\MEBsociety\Units\Cohabitant;
 use MengBao\MEBsociety\Units\MultiWorld;
+use MengBao\MEBsociety\Tools\GuiCommand;
+use MengBao\MEBsociety\Tools\GuiStackSet;
+use MengBao\MEBsociety\Tools\OfflineMessage;
+use MengBao\MEBsociety\Tools\WaitingConfirmation;
 use MengBao\MEBsociety\MEBCommand\CommandRegistry;
 use MengBao\MEBsociety\MEBCommand\CommandHandler\OpCommandHandler;
 use MengBao\MEBsociety\MEBCommand\CommandHandler\VipCommandHandler;
@@ -43,11 +49,14 @@ class Main extends PluginBase
     public Config $msgConfig;  //消息配置文件
     public Config $prefixConfig;  //称号配置文件
     public Config $prefixes;  //称号列表文件
-    public Config $waitingConfirmations;
+    public Config $shopConfig;  //GUI商店配置文件
+    public Config $shops;  //GUI商店列表文件
     public Config $offlineMessages;
-
-    public array $waitingConfirmation;  //等候答复
-    public array $offlineMessage;  //离线接收的消息
+    public WaitingConfirmation $waitingConfirmation;  //等候答复对象
+    public OfflineMessage $offlineMessage;  //离线消息对象
+    public GuiCommand $guiCommand;  //玩家通过GUI发送的指令
+    public GuiHandler $gui;
+    public GuiStackSet $guiStackSet;  //玩家点击gui的顺序
 
     public function onLoad(): void
     {
@@ -61,12 +70,14 @@ class Main extends PluginBase
 
     public function onEnable(): void
     {
+        $this->guiCommand = new GuiCommand();
+        $this->guiStackSet = new GuiStackSet();
+        $this->waitingConfirmation = new WaitingConfirmation();
         //创建配置文件
         @mkdir($this->getDataFolder(), 0777, true);
-        $this->waitingConfirmations = new Config($this->getDataFolder() . "WaitingConfirmations.yml", Config::YAML, []);
-        $this->waitingConfirmation = $this->waitingConfirmations->getAll();  //恢复等候答复
         $this->offlineMessages = new Config($this->getDataFolder() . "OfflineMessage.yml", Config::YAML, []);
-        $this->offlineMessage = $this->offlineMessages->getAll();  //恢复离线消息
+        $this->offlineMessage = new OfflineMessage();
+        $this->offlineMessage->setAllOM($this->offlineMessages->getAll());  //恢复离线消息
         $this->basicConfig = new Config(
             $this->getDataFolder() . "BasicConfig.yml",
             Config::YAML,
@@ -144,18 +155,20 @@ class Main extends PluginBase
             array(
                 "聊天格式" => "§6[{rand}§6]§r[{campsite}:{CID}§r]§c[{prefix}§c]§a[§f{cohabitant}§a]§7◆{name}§5>>> {color}",
                 "底部格式" => "§f|§e在线人数:{online} §d游戏币:{money} §e手持物品:{item} §2数量:{num} \n§f|§c权限:{rand} §b当前时间:{time}  §6当前地图:{world}\n§f|§e营地名:{campsite} §d营地id:{CID} §d同居:{cohabitant}",
+                "底部刷新时间间隔(s)" => 5,
             )
         );
         $this->prefixConfig = new Config(
             $this->getDataFolder() . "PrefixConfig.yml",
             Config::YAML,
             array(
-            "op是否可以管理称号" => true,
-            "每页显示的称号数量" => 5,
-        )
+                "op是否可以管理称号" => true,
+                "每页显示的称号数量" => 5,
+            )
         );
         $this->prefixes = new Config($this->getDataFolder() . "Prefixes.yml", Config::YAML, []);
-
+        
+        $this->gui = new GuiHandler();
         //注册事件监听器
         $this->getServer()->getPluginManager()->registerEvents(new MEBListener($this), $this);
         //初始化命令注册器
@@ -188,8 +201,15 @@ class Main extends PluginBase
         //创建计时器
         $this->getScheduler()->scheduleRepeatingTask(new CallbackTask(function (): void {  //底部信息
             $this->sendTip();
-        }), 20);
-        $this->getScheduler()->scheduleRepeatingTask(new CallbackTask(function (): void {  // 0点刷新计时器，以服务器开启的天数计算
+        }), 20 * $this->msgConfig->get("底部刷新时间间隔(s)"));
+        $this->getScheduler()->scheduleRepeatingTask(new CallbackTask(function (): void {  // 小时刷新计时器，以服务器开启的天数计算
+            //堆栈刷新检测
+            foreach ($this->getServer()->getOnlinePlayers() as $onlinePlayer) {
+                $onlienPlayerName = strtolower($onlinePlayer->getName());
+                if ($this->guiStackSet->checkStack(strtolower($onlienPlayerName)))
+                    $this->guiStackSet->newGSS($onlienPlayerName);
+            }
+            //0点刷新检测
             $currentTime = time();  //当前时间
             $midnight = strtotime("today", $currentTime);  //当天的起始0点时间
             $lastUpdateTime = $this->basicConfig->get("update");  //上一次更新时间
@@ -210,14 +230,12 @@ class Main extends PluginBase
                 Players::getInstance($this)->setAllPlayerTransferNum(Players::getInstance($this)->getTransferNum());
                 Players::getInstance($this)->setAllPlayerTransferNum(Players::getInstance($this)->getTransferNum(false), false);
             }
-        }), 20 * 60 * 60); // 每小时检查一次
+        }), 20 * 60 * 60);
     }
 
     public function onDisable(): void
     {   //服务器异常关闭时不会保存！！
-        $this->waitingConfirmations->setAll($this->waitingConfirmation);
-        $this->waitingConfirmations->save();
-        $this->offlineMessages->setAll($this->offlineMessage);
+        $this->offlineMessages->setAll($this->offlineMessage->getAllOM());
         $this->offlineMessages->save();
     }
 
@@ -234,6 +252,10 @@ class Main extends PluginBase
             $sender->sendMessage("§e/mebvip--vip指令");
             $sender->sendMessage("§e/mebsvip--svip指令");
             $sender->sendMessage("§c---------------------------");
+            return true;
+        }
+        if ($command->getName() === "mebui" && $sender instanceof Player) {
+            $this->gui->handle(00000, $sender);
             return true;
         }
         return $this->commandRegistry->onCommand($sender, $command, $label, $args);

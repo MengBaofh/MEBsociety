@@ -138,6 +138,8 @@ class OpCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
             return;
         }
+        if (is_numeric($args[1]))
+            $args[1] = Players::getInstance($this->plugin)->getOps()[(int) $args[1]];
         $args[1] = strtolower($args[1]);
         if (!Players::getInstance($this->plugin)->playerExist($args[1])) {
             $sender->sendMessage($this->logo . "§c玩家" . $args[1] . "不存在！");
@@ -191,6 +193,11 @@ class OpCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入要禁用的指令(指令前面不加'/')！");
             return;
         }
+        if (is_numeric($args[1])) {
+            $commands = $this->plugin->getServer()->getCommandMap()->getCommands();
+            $commands = array_keys($commands);
+            $args[1] = $commands[(int) $args[1]];
+        }
         if (Players::getInstance($this->plugin)->isCmdLimited($args[1])) {
             $sender->sendMessage($this->logo . "§c该指令已被禁用！");
             return;
@@ -204,6 +211,10 @@ class OpCommandHandler implements CommandHandlerInterface
         if (!Players::getInstance($this->plugin)->isMaster(strtolower($sender->getName())) && !$sender instanceof ConsoleCommandSender) {
             $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
             return;
+        }
+        if (is_numeric($args[1])) {
+            $commands = Players::getInstance($this->plugin)->getAllLimitedCmd();
+            $args[1] = str_replace("/", "", $commands[(int) $args[1]]);
         }
         if (!Players::getInstance($this->plugin)->isCmdLimited($args[1])) {
             $sender->sendMessage($this->logo . "§c该指令未被禁用！");

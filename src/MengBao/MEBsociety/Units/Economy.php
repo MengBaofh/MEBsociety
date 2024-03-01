@@ -78,7 +78,7 @@ class Economy  //打包好的方法
     }
 
     /**
-     * 更新排行榜
+     * 更新排行榜，分页
      */
     public function updateRanking(array $ranking): void
     {

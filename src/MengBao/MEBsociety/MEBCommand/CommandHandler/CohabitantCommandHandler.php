@@ -91,12 +91,12 @@ class CohabitantCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c对方不在线！");
             return;
         }
-        if (isset($this->plugin->waitingConfirmation[$args[1]])) {
+        if ($this->plugin->waitingConfirmation->hasWC($args[1])) {
             $sender->sendMessage($this->logo . "§c对方有一个请求未处理，无法接收当前请求！");
             return;
         }
         $player->sendMessage($this->logo . "§a玩家" . $senderName . "向你提出了同居申请，请在20s内作出回应。(yes/no)");
-        $this->plugin->waitingConfirmation[$args[1]] = function ($confirmed) use ($player, $playerName, $sender, $senderName, $moneyCohabitant) {
+        $this->plugin->waitingConfirmation->addWC($args[1], function ($confirmed) use ($player, $playerName, $sender, $senderName, $moneyCohabitant) {
             if ($confirmed) {
                 $player->sendMessage($this->logo . "§a已接受同居申请。");
                 $sender->sendMessage($this->logo . "§a对方接受了你的同居申请！");
@@ -107,16 +107,16 @@ class CohabitantCommandHandler implements CommandHandlerInterface
                 $player->sendMessage($this->logo . "§a已拒绝同居申请。");
                 $sender->sendMessage($this->logo . "§c对方拒绝了你的同居申请。");
             }
-            unset($this->plugin->waitingConfirmation[$senderName]);
-        };
+            $this->plugin->waitingConfirmation->delWC($senderName);
+        });
         //创建一个定时器，在20秒后自动执行回调函数
         $this->plugin->getScheduler()->scheduleDelayedTask(new CallbackTask(function () use ($player, $playerName, $sender): void {
-            if (isset($this->plugin->waitingConfirmation[$playerName])) {
+            if ($this->plugin->waitingConfirmation->hasWC($playerName)) {
                 $player->sendMessage($this->logo . "§c响应超时，已自动拒绝。");
                 $sender->sendMessage($this->logo . "§c对方未作出回应，已自动拒绝你的同居申请。");
-                $callback = $this->plugin->waitingConfirmation[$playerName];
+                $callback = $this->plugin->waitingConfirmation->getWC($playerName);
                 $callback(false);
-                unset($this->plugin->waitingConfirmation[$playerName]);
+                $this->plugin->waitingConfirmation->delWC($playerName);
             }
         }), 20 * 20);
     }
@@ -138,12 +138,12 @@ class CohabitantCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c对方不在线！");
             return;
         }
-        if (isset($this->plugin->waitingConfirmation[$cohabitantName])) {
+        if ($this->plugin->waitingConfirmation->hasWC($cohabitantName)) {
             $sender->sendMessage($this->logo . "§c对方有一个请求未处理，无法接收当前请求！");
             return;
         }
         $cohabitant->sendMessage($this->logo . "§a玩家" . $senderName . "向你提出了解除同居申请，请在20s内作出回应。(yes/no)");
-        $this->plugin->waitingConfirmation[$cohabitantName] = function ($confirmed) use ($cohabitant, $cohabitantName, $sender, $senderName) {
+        $this->plugin->waitingConfirmation->addWC($cohabitantName, function ($confirmed) use ($cohabitant, $cohabitantName, $sender, $senderName) {
             if ($confirmed) {
                 $cohabitant->sendMessage($this->logo . "§a已同意解除同居申请。");
                 $sender->sendMessage($this->logo . "§a对方同意了你的解除同居申请。");
@@ -152,16 +152,16 @@ class CohabitantCommandHandler implements CommandHandlerInterface
                 $cohabitant->sendMessage($this->logo . "§a已拒绝解除同居申请。");
                 $sender->sendMessage($this->logo . "§c对方拒绝了你的解除同居申请。");
             }
-            unset($this->plugin->waitingConfirmation[$cohabitantName]);
-        };
+            $this->plugin->waitingConfirmation->delWC($cohabitantName);
+        });
         // 创建一个定时器，在20秒后自动执行回调函数
         $this->plugin->getScheduler()->scheduleDelayedTask(new CallbackTask(function () use ($cohabitant, $cohabitantName, $sender): void {
-            if (isset($this->plugin->waitingConfirmation[$cohabitantName])) {
+            if ($this->plugin->waitingConfirmation->hasWC($cohabitantName)) {
                 $cohabitant->sendMessage($this->logo . "§c响应超时，已自动拒绝。");
                 $sender->sendMessage($this->logo . "§c对方未作出回应，已自动拒绝你的解除同居申请。");
-                $callback = $this->plugin->waitingConfirmation[$cohabitantName];
+                $callback = $this->plugin->waitingConfirmation->getWC($cohabitantName);
                 $callback(false);
-                unset($this->plugin->waitingConfirmation[$cohabitantName]);
+                $this->plugin->waitingConfirmation->delWC($cohabitantName);
             }
         }), 20 * 20);
     }

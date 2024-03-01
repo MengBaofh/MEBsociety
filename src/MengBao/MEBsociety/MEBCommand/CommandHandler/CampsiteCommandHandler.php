@@ -18,6 +18,7 @@ class CampsiteCommandHandler implements CommandHandlerInterface
 {
     public $logo = "[MEBS]";
     private $plugin;  //插件主类
+    const CONFIRM = 00001;
 
     public function __construct(PluginBase $plugin)
     {
@@ -230,12 +231,12 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c你没有权限使用这个命令！");
             return;
         }
-        if (isset($this->plugin->waitingConfirmation[$senderName])) {
+        if ($this->plugin->waitingConfirmation->hasWC($senderName)) {
             $sender->sendMessage($this->logo . "§c你有一个请求未处理，无法执行当前请求！");
             return;
         }
         $sender->sendMessage($this->logo . "§c营地将会转让给" . $args[1] . "，请再次确认！(yes/no)");
-        $this->plugin->waitingConfirmation[$senderName] = function ($confirmed) use ($sender, $senderName, $args) {
+        $this->plugin->waitingConfirmation->addWC($senderName, function ($confirmed) use ($sender, $senderName, $args) {
             if ($confirmed) {
                 // 确认后执行的操作
                 $sender->sendMessage($this->logo . "§a操作已确认，成功将营地转让给" . $args[1] . "。");
@@ -244,8 +245,10 @@ class CampsiteCommandHandler implements CommandHandlerInterface
                 Campsite::getInstance($this->plugin)->changeOwner($CID, $senderName, $args[1]);
             } else
                 $sender->sendMessage($this->logo . "§a操作已取消。");
-            unset($this->plugin->waitingConfirmation[$senderName]);
-        };
+            $this->plugin->waitingConfirmation->delWC($senderName);
+        });
+        //发送gui窗口
+        $this->plugin->gui->handle(self::CONFIRM, $sender, "", $this->logo . "§c营地将会转让给" . $args[1] . "，请再次确认！", ["确认", "取消"]);
     }
 
     public function call(CommandSender $sender): void
@@ -278,11 +281,11 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             if ($name === $senderName)
                 continue;
             $player = $this->plugin->getServer()->getPlayerExact($name);  //获取在线玩家实例
-            $playerName = strtolower($player->getName());
-            if ($player === null || isset($this->plugin->waitingConfirmation[$playerName]))  //玩家不在线或玩家有未处理的请求
+            if ($player === null || $this->plugin->waitingConfirmation->hasWC($playerName))  //玩家不在线或玩家有未处理的请求
                 continue;
+            $playerName = strtolower($player->getName());
             $player->sendMessage($this->logo . "§a营地的'" . Campsite::getInstance($this->plugin)->getCPost($senderName) . "'正在召集所有成员，请在" . $limitTime . "s内作出回应！(yes/no)");
-            $this->plugin->waitingConfirmation[$name] = function ($confirmed) use ($player, $sender, $senderName) {
+            $this->plugin->waitingConfirmation->addWC($name, function ($confirmed) use ($player, $sender, $senderName) {
                 if ($confirmed) {
                     // 确认后执行的操作
                     $player->sendMessage($this->logo . "§a操作已确认，正在传送。");
@@ -298,15 +301,17 @@ class CampsiteCommandHandler implements CommandHandlerInterface
                         $player->sendMessage($this->logo . "§c世界未加载，传送失败！");
                 } else
                     $player->sendMessage($this->logo . "§a操作已取消。");
-                unset($this->plugin->waitingConfirmation[$senderName]);
-            };
+                $this->plugin->waitingConfirmation->delWC($senderName);
+            });
+            //发送gui窗口
+            $this->plugin->gui->handle(self::CONFIRM, $player, "", $this->logo . "§a营地的'" . Campsite::getInstance($this->plugin)->getCPost($senderName) . "'正在召集所有成员，请在" . $limitTime . "s内作出回应！", ["确认传送", "拒绝传送"]);
             // 创建一个定时器，在limitTime秒后自动执行回调函数
             $this->plugin->getScheduler()->scheduleDelayedTask(new CallbackTask(function () use ($player, $playerName): void {
-                if (isset($this->plugin->waitingConfirmation[$playerName])) {
+                if ($this->plugin->waitingConfirmation->hasWC($playerName)) {
                     $player->sendMessage($this->logo . "§c响应超时。");
-                    $callback = $this->plugin->waitingConfirmation[$playerName];
+                    $callback = $this->plugin->waitingConfirmation->getWC($playerName);
                     $callback(false);
-                    unset($this->plugin->waitingConfirmation[$playerName]);
+                    $this->plugin->waitingConfirmation->delWC($playerName);
                 }
             }), 20 * $limitTime);
         }
@@ -328,20 +333,23 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c你没有权限使用这个命令！");
             return;
         }
-        if (isset($this->plugin->waitingConfirmation[$senderName])) {
+        if ($this->plugin->waitingConfirmation->hasWC($senderName)) {
             $sender->sendMessage($this->logo . "§c你有一个请求未处理，无法执行当前请求！");
             return;
         }
         $sender->sendMessage($this->logo . "§c营地将会被解散，请再次确认！(yes/no)");
-        $this->plugin->waitingConfirmation[$senderName] = function ($confirmed) use ($sender, $senderName) {
+        $this->plugin->waitingConfirmation->addWC($senderName, function ($confirmed) use ($sender, $senderName) {
             if ($confirmed) {
                 // 确认后执行的操作
                 $sender->sendMessage($this->logo . "§a操作已确认，成功解散营地。");
                 Campsite::getInstance($this->plugin)->deleteCampsite(Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName));
             } else
                 $sender->sendMessage($this->logo . "§a操作已取消。");
-            unset($this->plugin->waitingConfirmation[$senderName]);
-        };
+            $this->plugin->waitingConfirmation->delWC($senderName);
+        });
+        //发送gui窗口
+        $this->plugin->gui->handle(self::CONFIRM, $sender, "", $this->logo . "§c营地将会被解散，请再次确认！", ["确认", "取消"]);
+
     }
 
     public function join(CommandSender $sender, array $args): void
@@ -628,10 +636,10 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             }
             $arrays[$index] = $powerTemp;
         }
-        $arrays[$args[3]] = $args[1] === "add" ? true : false;
+        $arrays[$args[3]] = ($args[1] === "add" || $args[1] === "0") ? true : false;
         Campsite::getInstance($this->plugin)->changePower($args[2], $arrays);
-        $type = $args[1] === "add" ? "给予" : "移除";
-        $sender->sendMessage($this->logo . "§a成功" . $type . "玩家" . $args[2] . Campsite::getInstance($this->plugin)->getPowerNameByID($args[3]) . "的权力。");
+        $type = ($args[1] === "add" || $args[1] === "0") ? "给予" : "§c移除";
+        $sender->sendMessage($this->logo . "§a成功" . $type . "§a玩家" . $args[2] ."的§c". Campsite::getInstance($this->plugin)->getPowerNameByID($args[3]) . "§a的权力。");
     }
     public function search(CommandSender $sender, array $args): void
     {

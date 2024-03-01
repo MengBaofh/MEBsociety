@@ -38,9 +38,18 @@ class Campsite  //打包好的方法
      */
     public function setNameId(): void
     {
+        $this->nameId = array();
         $campsites = $this->plugin->campsites->getAll();
         foreach ($campsites as $CID => $value)
             $this->nameId[$value["name"]] = $CID;
+    }
+
+    /**
+     * 获取全部权力表
+     */
+    public function getPowerId(): array
+    {
+        return $this->powerId;
     }
 
     /**
@@ -208,7 +217,7 @@ class Campsite  //打包好的方法
     public function createCampsite(string $campsiteName, string $ownerName): void
     {
         //campsites配置文件中新增一条
-        $callNum = $this->plugin->campsiteConfig->get("营地每日召集次数上限") * $this->plugin->playerConfig->get($ownerName)["营地召集倍数"];
+        $callNum = $this->plugin->campsiteConfig->get("营地每日召集次数上限") * $this->getPlayerCallScale($ownerName);  //创建时只有营长一个人
         $campsites = $this->plugin->campsites->getAll();
         $CID = $this->getRandCID();
         $campsites[$CID] = array(
@@ -331,8 +340,10 @@ class Campsite  //打包好的方法
         else
             if (!in_array($playerName, $campsites[$CID]["application"]))
                 return -1;
-            else
-                $campsites[$CID]["application"] = array_diff($campsites[$CID]["application"], array($playerName));
+            else {
+                unset($campsites[$CID]["application"][array_search($playerName, $campsites[$CID]["application"])]);
+                $campsites[$CID]["application"] = array_values($campsites[$CID]["application"]);
+            }
         $this->plugin->campsites->setAll($campsites);
         $this->plugin->campsites->save();
         return 1;
@@ -386,7 +397,7 @@ class Campsite  //打包好的方法
      * 获取营地召集次数
      * 前提：CID是否存在
      */
-    public function getCallNum(int $CID): array
+    public function getCallNum(int $CID): int
     {
         return $this->plugin->campsites->get($CID)["call"];
     }

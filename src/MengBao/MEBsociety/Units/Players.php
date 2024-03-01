@@ -8,11 +8,28 @@ class Players
 {
     private static $instance;
     private $plugin;
+    private string $logo = "[MEB]";
 
     // 私有构造函数，防止外部直接实例化
     private function __construct(PluginBase $plugin)
     {
         $this->plugin = $plugin;
+    }
+
+
+    /**
+     * 通过自定义名检查玩家背包是否包含某物
+     * 前提：玩家是否存在且在线
+     */
+    public function isInIventory(string $playerName, string $customName): bool
+    {
+        $player = $this->plugin->getServer()->getPlayerExact($playerName);
+        foreach ($player->getInventory()->getContents() as $items) {
+			$name = $items->getCustomName();
+			if ($name === $customName)
+					return true;
+		}
+        return false;
     }
 
     /**
@@ -23,7 +40,7 @@ class Players
     {
         $player = $this->plugin->getServer()->getPlayerExact($playerName);
         if ($player === null)
-            array_push($this->plugin->offlineMessage[$playerName], $msg);
+            $this->plugin->offlineMessage->addOM($playerName, $msg);
         else
             $player->sendMessage($msg);
     }
@@ -33,7 +50,15 @@ class Players
      */
     public function isCmdLimited(string $cmdName): bool
     {
-        return in_array("/" . $cmdName, $this->plugin->basicConfig->get("禁止使用的指令"));
+        return in_array("/" . $cmdName, $this->getAllLimitedCmd());
+    }
+
+    /**
+     * 获取全部已禁用的指令
+     */
+    public function getAllLimitedCmd(): array
+    {
+        return $this->plugin->basicConfig->get("禁止使用的指令");
     }
 
     /**
@@ -45,8 +70,10 @@ class Players
         $basicConfig = $this->plugin->basicConfig->getAll();
         if ($type)
             array_push($basicConfig["禁止使用的指令"], "/" . $cmdName);
-        else
+        else {
             unset($basicConfig["禁止使用的指令"][array_search("/" . $cmdName, $basicConfig["禁止使用的指令"])]);
+            $basicConfig["禁止使用的指令"] = array_values($basicConfig["禁止使用的指令"]);
+        }
         $this->plugin->basicConfig->setAll($basicConfig);
         $this->plugin->basicConfig->save();
     }
@@ -178,8 +205,10 @@ class Players
             );
         else
             $vips[$playerName]["day"] = $day;
-        if ($vips[$playerName]["day"] === 0)
+        if ($vips[$playerName]["day"] === 0) {
             unset($vips[$playerName]);
+            $vips[$playerName] = array_values($vips[$playerName]);
+        }
         $config->setAll($vips);
         $config->save();
     }
@@ -341,6 +370,17 @@ class Players
     }
 
     /**
+     * 获取全部vip聊天颜色
+     */
+    public function getAllColor(bool $temp = true): array
+    {
+        if ($temp)
+            return ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        else
+            return ["1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "o", "m", "r"];
+    }
+
+    /**
      * 设置玩家的vip/svip聊天颜色
      */
     public function setColor(string $playerName, string $color, bool $type = true): void
@@ -490,6 +530,17 @@ class Players
     public function isOnline(string $playerName): bool
     {
         return $this->plugin->getServer()->getPlayerExact($playerName) !== null;
+    }
+
+    /**
+     * 获取全部在线玩家名
+     */
+    public function getAllOnlinePlayerName(): array
+    {
+        $onlinePlayers = array();
+        foreach ($this->plugin->getServer()->getOnlinePlayers() as $onlinePlayer)
+            $onlinePlayers[] = strtolower($onlinePlayer->getName());
+        return $onlinePlayers;
     }
 
     /**

@@ -54,6 +54,9 @@ class SvipCommandHandler implements CommandHandlerInterface
             case "color":
                 $this->color($sender, $args);
                 break;
+            case "guicolor":
+                $this->guicolor($sender, $args);
+                break;
             case "transfer":
                 $this->transfer($sender, $args);
                 break;
@@ -104,6 +107,8 @@ class SvipCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
             return;
         }
+        if (is_numeric($args[1]))
+            $args[1] = Players::getInstance($this->plugin)->getAllOnlinePlayerName()[(int) $args[1]];
         $args[1] = strtolower($args[1]);
         if (!isset($args[2])) {
             $sender->sendMessage($this->logo . "§c未输入天数！");
@@ -152,9 +157,17 @@ class SvipCommandHandler implements CommandHandlerInterface
     public function day(CommandSender $sender, array $args): void
     {
         $senderName = strtolower($sender->getName());
+        if (empty(Players::getInstance($this->plugin)->getVips(false))){
+            $sender->sendMessage($this->logo . "§c服务器还没有svip！");
+            return;
+        }
         if (!isset($args[1]))
             $args[1] = $senderName;
-        else
+        else{
+            if (is_numeric($args[1]))
+                $args[1] = Players::getInstance($this->plugin)->getVips(false)[(int) $args[1]];
+            $args[1] = strtolower($args[1]);
+        }
             $args[1] = strtolower($args[1]);
         if ($args[1] === "console") {
             $sender->sendMessage($this->logo . "§c控制台哪来的svip？");
@@ -219,6 +232,18 @@ class SvipCommandHandler implements CommandHandlerInterface
         $sender->sendMessage($this->logo . "§a成功更换颜色为：§" . $args[1] . $args[1]);
     }
 
+    public function guicolor(CommandSender $sender, array $args): void
+    {
+        $senderName = strtolower($sender->getName());
+        if (!Players::getInstance($this->plugin)->isVip($senderName, false)) {
+            $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
+            return;
+        }
+        $args[1] = Players::getInstance($this->plugin)->getAllColor(false)[(int) $args[1]];
+        Players::getInstance($this->plugin)->setColor($senderName, $args[1]);
+        $sender->sendMessage($this->logo . "§a成功更换颜色为：§" . $args[1] . $args[1]);
+    }
+
     public function transfer(CommandSender $sender, array $args): void
     {
         $senderName = strtolower($sender->getName());
@@ -234,7 +259,13 @@ class SvipCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
             return;
         }
+        if (is_numeric($args[1]))
+            $args[1] = Players::getInstance($this->plugin)->getAllOnlinePlayerName()[(int) $args[1]];
         $args[1] = strtolower($args[1]);
+        if ($args[1] === $senderName){
+            $sender->sendMessage($this->logo . "§c你不能选择你自己！");
+            return;
+        }
         if (!Players::getInstance($this->plugin)->playerExist($args[1])) {
             $sender->sendMessage($this->logo . "§c玩家" . $args[1] . "不存在！");
             return;

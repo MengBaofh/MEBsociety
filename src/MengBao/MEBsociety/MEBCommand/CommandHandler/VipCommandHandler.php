@@ -58,6 +58,9 @@ class VipCommandHandler implements CommandHandlerInterface
             case "color":
                 $this->color($sender, $args);
                 break;
+            case "guicolor":
+                $this->guicolor($sender, $args);
+                break;
             case "transfer":
                 $this->transfer($sender, $args);
                 break;
@@ -109,6 +112,8 @@ class VipCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
             return;
         }
+        if (is_numeric($args[1]))
+            $args[1] = Players::getInstance($this->plugin)->getAllOnlinePlayerName()[(int) $args[1]];
         $args[1] = strtolower($args[1]);
         if (!isset($args[2])) {
             $sender->sendMessage($this->logo . "§c未输入天数！");
@@ -183,10 +188,17 @@ class VipCommandHandler implements CommandHandlerInterface
     public function day(CommandSender $sender, array $args): void
     {
         $senderName = strtolower($sender->getName());
+        if (empty(Players::getInstance($this->plugin)->getVips(false))){
+            $sender->sendMessage($this->logo . "§c服务器还没有vip！");
+            return;
+        }
         if (!isset($args[1]))
             $args[1] = $senderName;
-        else
+        else{
+            if (is_numeric($args[1]))
+                $args[1] = Players::getInstance($this->plugin)->getVips()[(int) $args[1]];
             $args[1] = strtolower($args[1]);
+        }
         if ($args[1] === "console") {
             $sender->sendMessage($this->logo . "§c控制台哪来的vip？");
             return;
@@ -250,6 +262,18 @@ class VipCommandHandler implements CommandHandlerInterface
         $sender->sendMessage($this->logo . "§a成功更换颜色为：§" . $args[1] . $args[1]);
     }
 
+    public function guicolor(CommandSender $sender, array $args): void
+    {
+        $senderName = strtolower($sender->getName());
+        if (!Players::getInstance($this->plugin)->isVip($senderName)) {
+            $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
+            return;
+        }
+        $args[1] = Players::getInstance($this->plugin)->getAllColor()[(int) $args[1]];
+        Players::getInstance($this->plugin)->setColor($senderName, $args[1]);
+        $sender->sendMessage($this->logo . "§a成功更换颜色为：§" . $args[1] . $args[1]);
+    }
+
     public function transfer(CommandSender $sender, array $args): void
     {
         $senderName = strtolower($sender->getName());
@@ -265,7 +289,13 @@ class VipCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
             return;
         }
+        if (is_numeric($args[1]))
+            $args[1] = Players::getInstance($this->plugin)->getAllOnlinePlayerName()[(int) $args[1]];
         $args[1] = strtolower($args[1]);
+        if ($args[1] === $senderName){
+            $sender->sendMessage($this->logo . "§c你不能选择你自己！");
+            return;
+        }
         if (!Players::getInstance($this->plugin)->playerExist($args[1])) {
             $sender->sendMessage($this->logo . "§c玩家" . $args[1] . "不存在！");
             return;
@@ -275,12 +305,12 @@ class VipCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c对方不在线！");
             return;
         }
-        if (isset($this->plugin->waitingConfirmation[$args[1]])) {
+        if ($this->plugin->waitingConfirmation->hasWC($args[1])) {
             $sender->sendMessage($this->logo . "§c对方有一个请求未处理，无法接收当前请求！");
             return;
         }
         $player->sendMessage($this->logo . "§a玩家" . $senderName . "请求传送至你身边，请在20s内作出回应。(yes/no)");
-        $this->plugin->waitingConfirmation[$args[1]] = function ($confirmed) use ($player, $args, $sender, $senderName) {
+        $this->plugin->waitingConfirmation->addWC($args[1], function ($confirmed) use ($player, $args, $sender, $senderName) {
             if ($confirmed) {
                 $player->sendMessage($this->logo . "§a已同意传送。");
                 $sender->sendMessage($this->logo . "§a对方同意了你的传送申请，正在传送。");
@@ -298,16 +328,16 @@ class VipCommandHandler implements CommandHandlerInterface
                 $player->sendMessage($this->logo . "§a已拒绝传送申请。");
                 $sender->sendMessage($this->logo . "§c对方拒绝了你的传送申请。");
             }
-            unset($this->plugin->waitingConfirmation[$args[1]]);
-        };
+            $this->plugin->waitingConfirmation->delWC($args[1]);
+        });
         // 创建一个定时器，在20秒后自动执行回调函数
         $this->plugin->getScheduler()->scheduleDelayedTask(new CallbackTask(function () use ($player, $args, $sender): void {
-            if (isset($this->plugin->waitingConfirmation[$args[1]])) {
+            if ($this->plugin->waitingConfirmation->hasWC($args[1])) {
                 $player->sendMessage($this->logo . "§c响应超时，已自动拒绝。");
                 $sender->sendMessage($this->logo . "§c对方未作出回应，已自动拒绝你的传送申请。");
-                $callback = $this->plugin->waitingConfirmation[$args[1]];
+                $callback = $this->plugin->waitingConfirmation->getWC($args[1]);
                 $callback(false);
-                unset($this->plugin->waitingConfirmation[$args[1]]);
+                $this->plugin->waitingConfirmation->delWC($args[1]);
             }
         }), 20 * 20);
     }

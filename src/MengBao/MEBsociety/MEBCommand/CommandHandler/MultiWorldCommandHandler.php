@@ -90,6 +90,9 @@ class MultiWorldCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入世界名，传送失败!");
             return;
         }
+        if (is_numeric($args[1])) {
+            $args[1] = MultiWorld::getInstance($this->plugin)->getAllWolrdName()[(int) $args[1]];
+        }
         $result = MultiWorld::getInstance($this->plugin)->transportPlayer($sender, $args[1]);
         if ($result === 1)
             $sender->sendMessage($this->logo . "§e成功传送！");
@@ -112,6 +115,15 @@ class MultiWorldCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入世界名，传送失败!");
             return;
         }
+        if (!isset($args[2]))
+            $args[2] = null;
+        if (!isset($args[3]))
+            $args[3] = null;
+        if (!isset($args[4]))
+            $args[4] = null;
+        if (is_numeric($args[1])) {
+            $args[1] = MultiWorld::getInstance($this->plugin)->getAllWolrdName()[(int) $args[1]];
+        }
         $result = MultiWorld::getInstance($this->plugin)->transportPlayer($sender, $args[1], $args[2], $args[3], $args[4]);
         if ($result === 1)
             $sender->sendMessage($this->logo . "§e成功传送！");
@@ -129,6 +141,9 @@ class MultiWorldCommandHandler implements CommandHandlerInterface
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入待加载的世界名!");
             return;
+        }
+        if (is_numeric($args[1])) {
+            $args[1] = MultiWorld::getInstance($this->plugin)->getAllWolrdName()[(int) $args[1]];
         }
         $result = MultiWorld::getInstance($this->plugin)->loadWorldByName($args[1]);
         if ($result === -1)
@@ -153,6 +168,9 @@ class MultiWorldCommandHandler implements CommandHandlerInterface
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入待卸载的世界名!");
             return;
+        }
+        if (is_numeric($args[1])) {
+            $args[1] = MultiWorld::getInstance($this->plugin)->getAllWolrdName()[(int) $args[1]];
         }
         $result = MultiWorld::getInstance($this->plugin)->unloadWorldByName($args[1]);
         if ($result === -1)
@@ -203,6 +221,9 @@ class MultiWorldCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入描述信息!");
             return;
         }
+        if (is_numeric($args[1])) {
+            $args[1] = MultiWorld::getInstance($this->plugin)->getAllWolrdName()[(int) $args[1]];
+        }
         if (!MultiWorld::getInstance($this->plugin)->isWorldExist($args[1])) {
             $sender->sendMessage($this->logo . "§c世界" . $args[1] . "不存在!");
             return;
@@ -216,6 +237,9 @@ class MultiWorldCommandHandler implements CommandHandlerInterface
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入世界名!");
             return;
+        }
+        if (is_numeric($args[1])) {
+            $args[1] = MultiWorld::getInstance($this->plugin)->getAllWolrdName()[(int) $args[1]];
         }
         if (!MultiWorld::getInstance($this->plugin)->isWorldExist($args[1])) {
             $sender->sendMessage($this->logo . "§c世界" . $args[1] . "不存在!");

@@ -1,6 +1,6 @@
 name: MEBsociety
 main: MengBao\MEBsociety\Main
-version: 2.0.0
+version: 2.0.1
 api: 
 - 5.0.0
 load: POSTWORLD
@@ -8,6 +8,10 @@ author: MengBao
 website: https://github.com/MengBaofh/MEBsociety
 description: Campsites, marriage, vip and its management, op management, title, GUI store, bottom, chat and ...
 commands:
+ mebui:
+  description: Show MEBS Gui
+  permission: plugin.ge
+  usage: '/mebui'
  mebhelp:
   description: Show the usage of each MEBS command
   permission: plugin.ge
