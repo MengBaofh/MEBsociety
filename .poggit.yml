@@ -5,6 +5,7 @@ branches:
 projects:
   MEBsociety:
     path: ""
+    icon: "MEBS.png"
     lint:
       phpstan: false
 ...
