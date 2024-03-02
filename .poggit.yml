@@ -4,5 +4,5 @@ branches:
 - master
 projects:
   MEBsociety:
-    path: "https://github.com/MengBaofh/MEBsociety/"
+    path: "https://github.com/MengBaofh/MEBsociety/blob/master/"
 ...
