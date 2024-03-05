@@ -1,4 +1,4 @@
-# MEBsociety  [![](https://poggit.pmmp.io/shield.state/MEBsociety)](https://poggit.pmmp.io/p/MEBsociety)  
+# MEBsociety  
 ![logo](https://github.com/MengBaofh/MEBsociety/blob/master/MEBS.png)
 # Basic Information:
 Author: MengBao(fh)  
