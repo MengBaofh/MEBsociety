@@ -7,5 +7,5 @@ Main cmd: /mebhelp
 GUI cmd: /mebui  
 # Introduction:
 Campsites, multiWorld, economy, cohabitant, vip/svip/op management, prefix, GUI store, popup, chatMsg, banCmd and so on.  
-For details, see the description file "usage" in the package.  
+For details, see the description file "usage" in the released package.  
 # PocketMine Plugin
