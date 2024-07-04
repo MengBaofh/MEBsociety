@@ -18,6 +18,7 @@ class GuiStackSet
 
     /**
      * 一键设置数组
+     * @param array<string, GuiStack> $name
      */
     public function setAllGSS(array $guiStackSet): void
     {

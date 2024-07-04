@@ -32,6 +32,7 @@ class WaitingConfirmation
 
     /**
      * 一键设置waitingConfirmation
+     * @param array<string, callable> $waitingConfirmation
      */
     public function setWC(array $waitingConfirmation): void
     {

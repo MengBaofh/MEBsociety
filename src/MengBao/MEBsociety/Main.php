@@ -82,7 +82,7 @@ class Main extends PluginBase
             $this->getDataFolder() . "BasicConfig.yml",
             Config::YAML,
             array(
-                "version" => "2.0.0",
+                "version" => "2.0.2",
                 "update" => 0,
                 "禁止使用的指令" => ["/op", "/deop"],
                 "最高权限" => "mengbaofh0",

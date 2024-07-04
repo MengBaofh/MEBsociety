@@ -16,6 +16,7 @@ class OfflineMessage
 
     /**
      * 一键设置离线消息
+     * @param array<string, array<string>> $offlineMessage
      */
     public function setAllOM(array $offlineMessage): void
     {

@@ -172,19 +172,16 @@ class MEBListener implements Listener
         $player = $event->getPlayer();
         $playerName = strtolower($player->getName());
         $message = $event->getMessage();
-        if ($this->plugin->waitingConfirmation->hasWC($playerName)) {  //存在等待确认的消息
+        if ($this->plugin->waitingConfirmation->hasWC($playerName)) {
             $lowerMsg = strtolower($message);
             if ($lowerMsg === "yes") {
-                // 调用匿名函数，并传递确认状态为 true
                 $callback = $this->plugin->waitingConfirmation->getWC($playerName);
                 $callback(true);
             } elseif ($lowerMsg === "no") {
-                // 调用匿名函数，并传递确认状态为 false
                 $callback = $this->plugin->waitingConfirmation->getWC($playerName);
                 $callback(false);
             } else
                 $player->sendMessage($this->logo . "§c你有一个请求未处理，暂时无法输入其他消息。请输入 'yes' 或 'no' 来确认或取消请求。");
-            // 防止其他玩家看到该玩家的回答消息
             $event->cancel();
             return;
         }
@@ -246,8 +243,7 @@ class MEBListener implements Listener
         $data = json_decode($pk->formData);
         switch ($id) {
             case self::MAIN:
-                //检测是否有未执行的gui指令
-                if ($this->plugin->guiCommand->hasGC($playerName))
+                if ($this->plugin->guiCommand->hasGC($playerName))  //检测是否有未执行的gui指令
                     $this->plugin->guiCommand->delGC($playerName);
                 $this->plugin->gui->handle($this->mainIndex[(int) $data], $player);
                 break;
@@ -272,58 +268,19 @@ class MEBListener implements Listener
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "money add value1 value2");
-                        $this->plugin->gui->handle(
-                            self::TWO_V_INPUT_FORM,
-                            $player,
-                            "增加游戏币",
-                            "",
-                            array(
-                                "请输入玩家名：",
-                                "请输入游戏币数量"
-                            ),
-                            array(
-                                "<player_name>",
-                                "<money>"
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_V_INPUT_FORM, $player, "增加游戏币", "", ["请输入玩家名：", "请输入游戏币数量"], ["<player_name>", "<money>"]);
                         break;
                     case 3:
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "money remove value1 value2");
-                        $this->plugin->gui->handle(
-                            self::TWO_V_INPUT_FORM,
-                            $player,
-                            "减少游戏币",
-                            "",
-                            array(
-                                "请输入玩家名：",
-                                "请输入游戏币数量"
-                            ),
-                            array(
-                                "<player_name>",
-                                "<money>"
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_V_INPUT_FORM, $player, "减少游戏币", "", ["请输入玩家名：", "请输入游戏币数量"], ["<player_name>", "<money>"]);
                         break;
                     case 4:
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "money pay value1 value2");
-                        $this->plugin->gui->handle(
-                            self::TWO_V_INPUT_FORM,
-                            $player,
-                            "支付游戏币",
-                            "",
-                            array(
-                                "请输入玩家名：",
-                                "请输入游戏币数量"
-                            ),
-                            array(
-                                "<player_name>",
-                                "<money>"
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_V_INPUT_FORM, $player, "支付游戏币", "", ["请输入玩家名：", "请输入游戏币数量"], ["<player_name>", "<money>"]);
                         break;
                     case 5:
                         $ranking = Economy::getInstance($this->plugin)->getRanking();
@@ -448,41 +405,13 @@ class MEBListener implements Listener
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "campsite post value1 value2");
-                        $this->plugin->gui->handle(
-                            self::TWO_V_INPUT_FORM,
-                            $player,
-                            "设置营地职称",
-                            "",
-                            array(
-                                "请输入玩家名：",
-                                "请输入职称："
-                            ),
-                            array(
-                                "<player_name>",
-                                "<post_name>"
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_V_INPUT_FORM, $player, "设置营地职称", "", ["请输入玩家名：", "请输入职称："], ["<player_name>", "<post_name>"]);
                         break;
                     case 4:  //power
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "campsite power option value option");
-                        $this->plugin->gui->handle(
-                            self::TWO_D_ONE_I_FORM,
-                            $player,
-                            "管理营地权力",
-                            "",
-                            array(
-                                "请选择操作：",
-                                "玩家名：",
-                                "请选择权力："
-                            ),
-                            array(
-                                ["add", "remove"],
-                                "<player_name>",
-                                Campsite::getInstance($this->plugin)->getPowerId()
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_D_ONE_I_FORM, $player, "管理营地权力", "", ["请选择操作：", "玩家名：", "请选择权力："], [["add", "remove"], "<player_name>", Campsite::getInstance($this->plugin)->getPowerId()]);
                         break;
                     case 5:  //out踢人
                         if ($this->plugin->guiCommand->hasGC($playerName))
@@ -570,39 +499,13 @@ class MEBListener implements Listener
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "mebpre add value1 value2");
-                        $this->plugin->gui->handle(
-                            self::TWO_V_INPUT_FORM,
-                            $player,
-                            "给予玩家称号",
-                            "",
-                            array(
-                                "请输入玩家名：",
-                                "请输入称号："
-                            ),
-                            array(
-                                "<player_name>",
-                                "<prefix_name>"
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_V_INPUT_FORM, $player, "给予玩家称号", "", ["请输入玩家名：", "请输入称号："], ["<player_name>", "<prefix_name>"]);
                         break;
                     case 3:
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "mebpre del value1 value2");
-                        $this->plugin->gui->handle(
-                            self::TWO_V_INPUT_FORM,
-                            $player,
-                            "回收玩家称号",
-                            "",
-                            array(
-                                "请输入玩家名：",
-                                "请输入称号："
-                            ),
-                            array(
-                                "<player_name>",
-                                "<prefix_name>"
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_V_INPUT_FORM, $player, "回收玩家称号", "", ["请输入玩家名：", "请输入称号："], ["<player_name>", "<prefix_name>"]);
                         break;
                     case 4:
                         $this->plugin->getServer()->dispatchCommand($player, "mebpre oppre");
@@ -624,24 +527,7 @@ class MEBListener implements Listener
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "mw transfer option value value value");
-                        $this->plugin->gui->handle(
-                            self::TWO_D_ONE_I_FORM,
-                            $player,
-                            "定点传送",
-                            "",
-                            array(
-                                "请选择世界：",
-                                "请输入x坐标：",
-                                "请输入y坐标：",
-                                "请输入z坐标："
-                            ),
-                            array(
-                                MultiWorld::getInstance($this->plugin)->getAllWolrdName(),
-                                "若不填则默认传送至世界出生点",
-                                "若不填则默认传送至世界出生点",
-                                "若不填则默认传送至世界出生点"
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_D_ONE_I_FORM, $player, "定点传送", "", ["请选择世界：", "请输入x坐标：", "请输入y坐标：", "请输入z坐标："], [MultiWorld::getInstance($this->plugin)->getAllWolrdName(), "若不填则默认传送至世界出生点", "若不填则默认传送至世界出生点", "若不填则默认传送至世界出生点"]);
                         break;
                     case 2:
                         $worldString = "世界名 | 是否已加载 | 在线玩家\n-----------------------------------------------\n";
@@ -659,20 +545,7 @@ class MEBListener implements Listener
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "mw setinfo option value");
-                        $this->plugin->gui->handle(
-                            self::TWO_D_ONE_I_FORM,
-                            $player,
-                            "设置世界描述",
-                            "",
-                            array(
-                                "请选择世界：",
-                                "请输入描述："
-                            ),
-                            array(
-                                MultiWorld::getInstance($this->plugin)->getAllWolrdName(),
-                                "<info>"
-                            )
-                        );
+                        $this->plugin->gui->handle(self::TWO_D_ONE_I_FORM, $player, "设置世界描述", "", ["请选择世界：", "请输入描述："], [MultiWorld::getInstance($this->plugin)->getAllWolrdName(), "<info>"]);
                         break;
                     case 5:
                         if ($this->plugin->guiCommand->hasGC($playerName))

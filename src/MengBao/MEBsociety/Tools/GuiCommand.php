@@ -32,6 +32,7 @@ class GuiCommand
 
     /**
      * 一键设置guiCommand数组
+     * @param array<string, string> $guiCommand
      */
     public function setGC(array $guiCommand): void
     {

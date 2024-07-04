@@ -81,13 +81,8 @@ class CohabitantCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入同居对象！");
             return;
         }
-        if (Cohabitant::getInstance($this->plugin)->hasCohabitant($args[1])) {
-            $sender->sendMessage($this->logo . "§c对方已经有同居了！");
-            return;
-        }
         $player = $this->plugin->getServer()->getPlayerExact($args[1]);  //获取在线玩家实例
-        $playerName = strtolower($player->getName());
-        if ($player === null) {
+        if ($player === null) {  //若对方不在线或未注册
             $sender->sendMessage($this->logo . "§c对方不在线！");
             return;
         }
@@ -95,7 +90,12 @@ class CohabitantCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c对方有一个请求未处理，无法接收当前请求！");
             return;
         }
+        if (Cohabitant::getInstance($this->plugin)->hasCohabitant($args[1])) {
+            $sender->sendMessage($this->logo . "§c对方已经有同居了！");
+            return;
+        }
         $player->sendMessage($this->logo . "§a玩家" . $senderName . "向你提出了同居申请，请在20s内作出回应。(yes/no)");
+        $playerName = strtolower($player->getName());  //获取玩家名并转换为小写
         $this->plugin->waitingConfirmation->addWC($args[1], function ($confirmed) use ($player, $playerName, $sender, $senderName, $moneyCohabitant) {
             if ($confirmed) {
                 $player->sendMessage($this->logo . "§a已接受同居申请。");
