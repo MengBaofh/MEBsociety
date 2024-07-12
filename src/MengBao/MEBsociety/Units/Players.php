@@ -1,4 +1,4 @@
-<?
+<?php
 
 namespace MengBao\MEBsociety\Units;
 
@@ -25,10 +25,10 @@ class Players
     {
         $player = $this->plugin->getServer()->getPlayerExact($playerName);
         foreach ($player->getInventory()->getContents() as $items) {
-			$name = $items->getCustomName();
-			if ($name === $customName)
-					return true;
-		}
+            $name = $items->getCustomName();
+            if ($name === $customName)
+                return true;
+        }
         return false;
     }
 
@@ -138,7 +138,7 @@ class Players
     public function addOp(string $playerName): void
     {
         $basicConfig = $this->plugin->basicConfig->getAll();
-        array_push($basicConfig["OP"], $playerName);
+        $basicConfig["OP"][] = $playerName;  //隐式添加元素
         $this->plugin->basicConfig->setAll($basicConfig);
         $this->plugin->basicConfig->save();
     }
@@ -150,6 +150,7 @@ class Players
     {
         $basicConfig = $this->plugin->basicConfig->getAll();
         unset($basicConfig["OP"][array_search($playerName, $basicConfig["OP"])]);
+        $basicConfig["OP"] = array_values($basicConfig["OP"]);  //重置索引并转换为隐式数组
         $this->plugin->basicConfig->setAll($basicConfig);
         $this->plugin->basicConfig->save();
     }
@@ -348,7 +349,7 @@ class Players
             return "最高权限";
         elseif ($this->isOp($playerName))
             return "OP";
-        elseif ($this->isSvip($playerName))
+        elseif ($this->isVip($playerName, false))
             return "SVIP";
         elseif ($this->isVip($playerName))
             return "VIP";

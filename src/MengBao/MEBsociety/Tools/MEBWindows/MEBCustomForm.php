@@ -1,4 +1,4 @@
-<?
+<?php
 
 namespace MengBao\MEBsociety\Tools\MEBWindows;
 

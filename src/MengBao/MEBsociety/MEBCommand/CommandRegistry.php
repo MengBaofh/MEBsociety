@@ -1,4 +1,4 @@
-<?
+<?php
 namespace MengBao\MEBsociety\MEBCommand;
 
 use pocketmine\plugin\PluginBase;

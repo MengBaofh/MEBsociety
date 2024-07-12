@@ -82,12 +82,12 @@ class Main extends PluginBase
             $this->getDataFolder() . "BasicConfig.yml",
             Config::YAML,
             array(
-                "version" => "2.0.2",
+                "version" => "2.0.3",
                 "update" => 0,
                 "禁止使用的指令" => ["/op", "/deop"],
-                "最高权限" => "mengbaofh0",
+                "最高权限" => null,
                 "每页显示的op数量" => 5,
-                "OP" => ["mengbaofh0"],
+                "OP" => [],
             )
         );
         $this->campsiteConfig = new Config(

@@ -1,9 +1,10 @@
-<?
+<?php
 
 namespace MengBao\MEBsociety;
 
 use pocketmine\item\StringToItemParser;
 use pocketmine\item\LegacyStringToItemParser;
+use pocketmine\plugin\Plugin;
 use pocketmine\plugin\PluginBase;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerJoinEvent;
@@ -98,17 +99,19 @@ class MEBListener implements Listener
             $player->getInventory()->addItem($item);
             $player->sendMessage($this->logo . "§l§5导航工具§7已发送至你的背包！");
         }
-        //权限检测
-        if ($this->plugin->getServer()->isOp($playerName) && !Players::getInstance($this->plugin)->isOp($playerName)) {
+        //非法op权限检测
+        if ($this->plugin->getServer()->isOp($playerName) && (!(Players::getInstance($this->plugin)->isOp($playerName) || Players::getInstance($this->plugin)->isMaster($playerName)))) {
             $this->plugin->getServer()->removeOP($playerName);
             Cohabitant::getInstance($this->plugin)->setPlayerTransferNumScale($playerName, 1);
             Cohabitant::getInstance($this->plugin)->setOpdivPower($playerName, false);
             Campsite::getInstance($this->plugin)->setPlayerCallScale($playerName, 1);
         }
-        if (Players::getInstance($this->plugin)->isOp($playerName)) {
-            //op权限重置检测
+        if (Players::getInstance($this->plugin)->isOp($playerName) || Players::getInstance($this->plugin)->isMaster($playerName)) {
+            //op/master权限重置检测
             if (!$this->plugin->getServer()->isOp($playerName))
                 $this->plugin->getServer()->addOP($playerName);
+            if (!Players::getInstance($this->plugin)->isOp($playerName))
+                Players::getInstance($this->plugin)->addOp($playerName);  //若为master，可能仅使用配置文件设置了master但未通过指令给予
             if (Cohabitant::getInstance($this->plugin)->getPlayerTransferNumScale($playerName) !== 10)  //同居传送倍数
                 Cohabitant::getInstance($this->plugin)->setPlayerTransferNumScale($playerName, 10);
             if (!Cohabitant::getInstance($this->plugin)->hasOpdivPower($playerName))  //强制解除同居权力
@@ -576,6 +579,7 @@ class MEBListener implements Listener
                         if ($this->plugin->guiCommand->hasGC($playerName))
                             return $this->guiCommandError->guiCommandNotHandled($player);
                         $this->plugin->guiCommand->addGC($playerName, "mebop del option");
+                        $a = Players::getInstance($this->plugin)->getOps();
                         $this->plugin->gui->handle(self::ONE_DROPDOWN_FORM, $player, "删除op", "", "请选择要删除的op：", Players::getInstance($this->plugin)->getOps());
                         break;
                     case 2:
