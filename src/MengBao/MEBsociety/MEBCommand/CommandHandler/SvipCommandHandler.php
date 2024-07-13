@@ -89,6 +89,7 @@ class SvipCommandHandler implements CommandHandlerInterface
         $senderName = strtolower($sender->getName());
         if (!Players::getInstance($this->plugin)->isMaster($senderName) && !$sender instanceof ConsoleCommandSender) {
             $sender->sendMessage($this->logo . "§c你没有权限使用这个指令！");
+            return;
         }
         $power = Players::getInstance($this->plugin)->hasOpVip(false);
         $temp = $power === true ? "关闭" : "开启";
@@ -102,6 +103,7 @@ class SvipCommandHandler implements CommandHandlerInterface
         $senderName = strtolower($sender->getName());
         if ((!Players::getInstance($this->plugin)->isOp($senderName) || !Players::getInstance($this->plugin)->hasOpVip()) && !Players::getInstance($this->plugin)->isMaster($senderName) && !$sender instanceof ConsoleCommandSender) {
             $sender->sendMessage($this->logo . "§c你没有权限使用这个指令！");
+            return;
         }
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
@@ -157,18 +159,18 @@ class SvipCommandHandler implements CommandHandlerInterface
     public function day(CommandSender $sender, array $args): void
     {
         $senderName = strtolower($sender->getName());
-        if (empty(Players::getInstance($this->plugin)->getVips(false))){
+        if (empty(Players::getInstance($this->plugin)->getVips(false))) {
             $sender->sendMessage($this->logo . "§c服务器还没有svip！");
             return;
         }
         if (!isset($args[1]))
             $args[1] = $senderName;
-        else{
+        else {
             if (is_numeric($args[1]))
                 $args[1] = Players::getInstance($this->plugin)->getVips(false)[(int) $args[1]];
             $args[1] = strtolower($args[1]);
         }
-            $args[1] = strtolower($args[1]);
+        $args[1] = strtolower($args[1]);
         if ($args[1] === "console") {
             $sender->sendMessage($this->logo . "§c控制台哪来的svip？");
             return;
@@ -262,7 +264,7 @@ class SvipCommandHandler implements CommandHandlerInterface
         if (is_numeric($args[1]))
             $args[1] = Players::getInstance($this->plugin)->getAllOnlinePlayerName()[(int) $args[1]];
         $args[1] = strtolower($args[1]);
-        if ($args[1] === $senderName){
+        if ($args[1] === $senderName) {
             $sender->sendMessage($this->logo . "§c你不能选择你自己！");
             return;
         }

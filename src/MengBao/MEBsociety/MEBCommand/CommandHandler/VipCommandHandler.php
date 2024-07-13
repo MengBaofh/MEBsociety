@@ -95,6 +95,7 @@ class VipCommandHandler implements CommandHandlerInterface
         $senderName = strtolower($sender->getName());
         if (!Players::getInstance($this->plugin)->isMaster($senderName) && !$sender instanceof ConsoleCommandSender) {
             $sender->sendMessage($this->logo . "§c你没有权限使用这个指令！");
+            return;
         }
         $power = Players::getInstance($this->plugin)->hasOpVip();
         $temp = $power === true ? "关闭" : "开启";
@@ -107,6 +108,7 @@ class VipCommandHandler implements CommandHandlerInterface
         $senderName = strtolower($sender->getName());
         if ((!Players::getInstance($this->plugin)->isOp($senderName) || !Players::getInstance($this->plugin)->hasOpVip()) && !Players::getInstance($this->plugin)->isMaster($senderName) && !$sender instanceof ConsoleCommandSender) {
             $sender->sendMessage($this->logo . "§c你没有权限使用这个指令！");
+            return;
         }
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
@@ -143,6 +145,7 @@ class VipCommandHandler implements CommandHandlerInterface
         $senderName = strtolower($sender->getName());
         if ((!Players::getInstance($this->plugin)->isOp($senderName) || !Players::getInstance($this->plugin)->hasOpVip()) && !Players::getInstance($this->plugin)->isMaster($senderName) && !$sender instanceof ConsoleCommandSender) {
             $sender->sendMessage($this->logo . "§c你没有权限使用这个指令！");
+            return;
         }
         if (!isset($args[1])) {
             $sender->sendMessage($this->logo . "§c未输入玩家名！");
