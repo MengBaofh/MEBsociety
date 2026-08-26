@@ -1,6 +1,6 @@
 name: MEBSociety
 main: MengBao\MEBSociety\Main
-version: 2.0.5
+version: 2.0.6
 api: 
 - 5.0.0
 load: POSTWORLD
@@ -49,6 +49,10 @@ commands:
   description: Managing MEBS prefix
   permission: plugin.ge
   usage: '/mebpre help'
+ mebshop:
+  description: Managing MEBS gui shop
+  permission: plugin.ge
+  usage: '/mebshop help'
 
 permissions:
  plugin.ge:
