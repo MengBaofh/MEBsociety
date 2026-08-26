@@ -28,7 +28,7 @@
 
 ## 链接
 
-- 反馈 bug 群：[点击加入](群链接)
+- 反馈 bug 群：[点击加入](https://qun.qq.com/universal-share/share?ac=1&authKey=HJqOZiQeXeja5NyPiqbfbPPRGX6UdRYf%2FZ8jxAr5B52Bl8a2L4ZqpgQ4%2FZ2JTQ%2BG&busi_data=eyJncm91cENvZGUiOiI0OTUyNjI5MjYiLCJ0b2tlbiI6Imh4Q01pWkpkQVgvekFSK0cwbTJjWU5xdHFBMGJJN01qQVN6SmhRMUZHTmcwRzNBOXpvdlArcW1EaTRNcFI1MEsiLCJ1aW4iOiI4MjU1ODUzOTgifQ%3D%3D&data=_H46ENc_fxiIeBZm8xNKqFoGMVQ2ZbAayO2_xLQ7-24neRXx2M6uoWZqOCk2iPBw_MgYalDv4PNB8uOLvhl3ww&svctype=4&tempid=h5_group_info)
 
 ## 常见问题 & 注意事项
 
