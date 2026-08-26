@@ -1,11 +1,89 @@
-# MEBsociety  
-![logo](https://github.com/MengBaofh/MEBsociety/blob/master/MEBS.png)
-# Basic Information:
-Author: MengBao(fh)  
-API(The latest): 5.x.x  
-Main cmd: /mebhelp  
-GUI cmd: /mebui  
-# Introduction:
-Campsites, multiWorld, economy, cohabitant, vip/svip/op management, prefix, GUI store, popup, chatMsg, banCmd and so on.  
-For details, see the description file "usage" in the released package.  
-# PocketMine Plugin
+# MEBSociety
+
+> ⚠️ **紧急通知**：None
+
+## 快速上手
+
+| 指令 | 说明 |
+| --- | --- |
+| `/mebhelp` | 总指令，查看全部帮助 |
+| `/mebui` | 唤醒 GUI 导航（玩家加入服务器会自动发送导航物品） |
+
+## 功能
+
+- GUI 商店系统（自定义）
+- 离线消息
+- 营地系统
+- 同居系统
+- 称号系统
+- 多世界系统
+- 经济系统
+- OP 管理系统
+- 指令禁用系统
+- VIP / SVIP 管理系统
+- 底部显示（自定义）
+- 聊天格式化（自定义）
+- 进服权限异常检测与重置
+- 自动清除异常数据
+
+## 链接
+
+- 反馈 bug 群：[点击加入](群链接)
+- GitHub：[点击跳转](仓库链接)
+
+## 常见问题 & 注意事项
+
+<details>
+<summary>点击查看</summary>
+
+1. **多世界需手动加载**：内置多世界系统每次开服都需要管理员手动加载各个世界（默认世界除外），否则无法传送。计划在下个版本（或更久）加入自动加载世界的开关。
+2. **删除最高权限的顺序**：先用指令删除其 OP，再关服修改配置文件中的「最高权限」，否则无法删除。若只是更换，可直接使用 `/mebop master <新的最高权限玩家名>`。
+
+</details>
+
+## 更新日志
+
+<details>
+<summary>点击查看</summary>
+
+### v2.x（适配 PMMP 5.x.x）
+
+| 版本 | 变更 |
+| --- | --- |
+| v2.0.6 | GUI 商店回归 |
+| v2.0.5 | 修复 bug |
+| v2.0.4 | 修复权限判断异常的 bug |
+| v2.0.3 | 修复报错，新增最高权限检测 |
+| v2.0.2 | 修复同居指令报错 |
+| v2.0.1 | 新增 GUI 导航系统，修复报错 |
+| v2.0.0 | 适配 PM 核心 API 5.x.x |
+
+### v1.x
+
+| 版本 | 变更 |
+| --- | --- |
+| v1.2.4 | 代码优化 |
+| v1.2.3 | 修复已知 bug |
+| v1.2.2 | 优化 OP 管理系统 |
+| v1.2.1 | 更新接口 |
+| v1.2.0 | 添加接口，详见「更新」 |
+| v1.1.9 | 修复部分核心 OP 进服报错问题 |
+| v1.1.8 | 修复报错；新增自定义项目；优化底部显示，减轻服务器负担 |
+| v1.1.7 | 修复 GUI 商店配置缺失问题 |
+| v1.1.6 | 修复若干错误；插件文件夹更名 MBsociety；新增各系统管理，可通过「信息开关.yml」自行调控 |
+| v1.1.5 | 修复指令输入不全导致崩服的 BUG，简化代码，更名 MBsociety |
+| v1.1.4 | 新增 GUI 商店（自定义） |
+| v1.1.3 | 修复 VIP 指令和公会显示问题 |
+| v1.1.2 | 代码优化，底部显示内容增加 |
+| v1.1.1 | 修复公会底部显示异常导致崩服 |
+| v1.1.0 | 代码优化，修复底部显示异常，支持 PMMP 1.8 |
+| v1.0.9 | 优化公会指令描述，新增自定义商店格式 |
+| v1.0.8 | 削弱 VIP 权力，更新公会指令 |
+| v1.0.7 | 修复玩家加服报错 |
+| v1.0.6 | 新增底部信息自定义 |
+| v1.0.5 | 指令叙述更加清晰 |
+| v1.0.4 | 新增底部 / 聊天显示管理开关 |
+| v1.0.3 | 修复部分指令失效问题 |
+| v1.0.2 | 修复拖慢开服问题 |
+
+</details>
