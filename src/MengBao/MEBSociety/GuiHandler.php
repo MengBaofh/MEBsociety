@@ -48,6 +48,19 @@ class GuiHandler
     }
 
     /**
+     * 把参数用引号包起来，供拼接指令时使用
+     *
+     * 核心的CommandStringHelper::parseQuoteAware按空格拆参数，
+     * 引号包住的算一个参数，并且会把\"和\\还原。
+     * 所以表单里填的带空格内容(如white wool)必须这样包一层，
+     * 否则会被拆成多个参数，后面的数字参数全部错位。
+     */
+    private function quoteArg(string $value): string
+    {
+        return '"' . str_replace(array("\\", '"'), array("\\\\", '\\"'), $value) . '"';
+    }
+
+    /**
      * 按钮界面
      *
      * $entries的每一项为 [按钮文字, 点击后执行的闭包, 图标类型, 图标地址]，
@@ -915,7 +928,8 @@ class GuiHandler
                     $this->tip($p, "新增物品商品", "§c卖价必须是非负数！", $back);
                     return;
                 }
-                $this->dispatch($p, "mebshop additem " . $v["item"] . " " . (int) $v["num"] . " " . $v["buy"] . " " . $sell);
+                //物品名可能带空格(如white wool)，包一层引号交给指令，避免被拆成多个参数
+                $this->dispatch($p, "mebshop additem " . $this->quoteArg(trim($v["item"])) . " " . (int) $v["num"] . " " . $v["buy"] . " " . $sell);
             })],
             ["新增称号商品", fn(Player $p) => $this->form($p, "新增称号商品", [
                 "prefix" => ["label" => "请输入称号(支持§颜色)：", "placeholder" => "<prefix>"],
@@ -925,16 +939,12 @@ class GuiHandler
                     $this->tip($p, "新增称号商品", "§c称号和价格都要填！", $back);
                     return;
                 }
-                //称号带空格的话会被指令拆成多个参数，这里直接挡住
-                if (strpos($v["prefix"], " ") !== false) {
-                    $this->tip($p, "新增称号商品", "§c称号里不能有空格！", $back);
-                    return;
-                }
                 if (!is_numeric($v["buy"]) || (float) $v["buy"] < 0) {
                     $this->tip($p, "新增称号商品", "§c价格必须是非负数！", $back);
                     return;
                 }
-                $this->dispatch($p, "mebshop addpre " . $v["prefix"] . " " . $v["buy"]);
+                //称号也可能带空格，同样包一层引号
+                $this->dispatch($p, "mebshop addpre " . $this->quoteArg(trim($v["prefix"])) . " " . $v["buy"]);
             })],
             ["删除商品", function (Player $p) use ($shop, $back): void {
                 $options = $this->getShopOptions($shop->getAllShops());

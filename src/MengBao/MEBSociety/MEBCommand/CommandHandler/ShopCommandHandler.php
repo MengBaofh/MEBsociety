@@ -82,6 +82,7 @@ class ShopCommandHandler implements CommandHandlerInterface
         if ($this->hasManagePower($sender)) {
             $sender->sendMessage("§e> /" . $c_name . " additem <item_name> <num> <buy_price> <sell_price> --- 新增物品商品");
             $sender->sendMessage("§e> /" . $c_name . " addpre <prefix> <buy_price> --- 新增称号商品");
+            $sender->sendMessage("§7   物品名/称号带空格时可以直接写，也可以用引号包起来，如\"white wool\"");
             $sender->sendMessage("§e> /" . $c_name . " del <shop_id> --- 删除商品");
             $sender->sendMessage("§e> /" . $c_name . " switch <shop_id> <buy/sell> --- 开关商品的购买/出售");
             $sender->sendMessage("§e> /" . $c_name . " icon <shop_id> <path/url/auto> <address> --- 设置商品图标");
@@ -195,27 +196,32 @@ class ShopCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c你没有权限使用这个指令！");
             return;
         }
-        if (!isset($args[1]) || !isset($args[2]) || !isset($args[3])) {
-            $sender->sendMessage($this->logo . "§c未输入<item_name>或<num>或<buy_price>，新增商品失败！");
+        //物品名可能带空格(如white wool)，按下标取参数会把空格后面那截当成<num>
+        list($itemName, $numbers) = $this->splitNameAndNumbers(array_slice($args, 1), 3);
+        $itemName = trim($itemName);
+        if ($itemName === "" || count($numbers) < 2) {
+            $sender->sendMessage($this->logo . "§c用法：/" . $this->getCommandName() . " additem <item_name> <num> <buy_price> <sell_price>");
+            $sender->sendMessage($this->logo . "§c物品名带空格时可以用引号包起来，如\"white wool\"");
             return;
         }
-        $itemName = $args[1];
-        if (!is_numeric($args[2]) || (int) $args[2] <= 0) {
+        $num = $numbers[0];
+        $buyPrice = $numbers[1];
+        if (!is_numeric($num) || (int) $num <= 0) {
             $sender->sendMessage($this->logo . "§c<num>必须为正整数！");
             return;
         }
-        if (!is_numeric($args[3]) || $args[3] < 0) {
+        if (!is_numeric($buyPrice) || $buyPrice < 0) {
             $sender->sendMessage($this->logo . "§c<buy_price>必须为非负数！");
             return;
         }
         //卖价不填就按0处理，等于这件商品只卖不收
-        $sellPrice = isset($args[4]) ? $args[4] : 0;
+        $sellPrice = isset($numbers[2]) ? $numbers[2] : 0;
         if (!is_numeric($sellPrice) || $sellPrice < 0) {
             $sender->sendMessage($this->logo . "§c<sell_price>必须为非负数！");
             return;
         }
         //名称留空，让它显示物品自己的名字，管理员想改再去改Shops.yml
-        $SID = Shop::getInstance($this->plugin)->addItemShop("", $itemName, (int) $args[2], (float) $args[3], (float) $sellPrice);
+        $SID = Shop::getInstance($this->plugin)->addItemShop("", $itemName, (int) $num, (float) $buyPrice, (float) $sellPrice);
         //物品名解析不出来时只提醒，不拦着，方便管理员先建好商品再改配置
         if (Shop::getInstance($this->plugin)->getShopItem($SID) === null)
             $sender->sendMessage($this->logo . "§c警告：物品名" . $itemName . "无法识别，玩家将无法交易该商品，请修改Shops.yml！");
@@ -228,20 +234,20 @@ class ShopCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c你没有权限使用这个指令！");
             return;
         }
-        if (!isset($args[1]) || !isset($args[2])) {
-            $sender->sendMessage($this->logo . "§c未输入<prefix>或<buy_price>，新增商品失败！");
+        //称号同样可能带空格，不能按固定下标取价格
+        list($prefix, $numbers) = $this->splitNameAndNumbers(array_slice($args, 1), 1);
+        $prefix = trim($prefix);
+        if ($prefix === "" || $numbers === array()) {
+            $sender->sendMessage($this->logo . "§c用法：/" . $this->getCommandName() . " addpre <prefix> <buy_price>");
+            $sender->sendMessage($this->logo . "§c称号带空格时可以用引号包起来，如\"§b萌新 玩家\"");
             return;
         }
-        $prefix = trim($args[1]);
-        if ($prefix === "") {
-            $sender->sendMessage($this->logo . "§c称号不能为空！");
-            return;
-        }
-        if (!is_numeric($args[2]) || $args[2] < 0) {
+        $buyPrice = $numbers[0];
+        if (!is_numeric($buyPrice) || $buyPrice < 0) {
             $sender->sendMessage($this->logo . "§c<buy_price>必须为非负数！");
             return;
         }
-        $SID = Shop::getInstance($this->plugin)->addPrefixShop("", $prefix, (float) $args[2]);
+        $SID = Shop::getInstance($this->plugin)->addPrefixShop("", $prefix, (float) $buyPrice);
         $sender->sendMessage($this->logo . "§a成功新增称号商品，商品ID为：" . $SID);
     }
 
@@ -346,6 +352,32 @@ class ShopCommandHandler implements CommandHandlerInterface
             return null;
         }
         return $SID;
+    }
+
+    /**
+     * 把"名称 + 若干个数字"的参数拆开，名称允许带空格
+     *
+     * 核心的parseQuoteAware只会按空格拆参数(引号包起来的算一个)，
+     * 所以像white wool这种带空格的物品名，按固定下标取参数一定会取错，
+     * 会把wool当成<num>，触发"必须为正整数"。
+     * 这里从末尾往前剥数字，最多剥$maxNumbers个，且至少给名称留一个参数，
+     * 剩下的用空格拼回去当名称。引号写法也照样能用，那种情况名称本来就只有一个参数。
+     *
+     * @param list<string> $args 已经去掉子指令的参数
+     * @return array{0: string, 1: list<string>} [名称, 顺序排列的数字参数]
+     */
+    private function splitNameAndNumbers(array $args, int $maxNumbers): array
+    {
+        $numbers = array();
+        //留最后一个参数给名称，避免整串都被当成数字后名称为空
+        for ($i = count($args) - 1; $i >= 1 && count($numbers) < $maxNumbers; $i--) {
+            if (!is_numeric($args[$i]))
+                break;
+            $numbers[] = $args[$i];
+        }
+        $numbers = array_reverse($numbers);
+        $name = implode(" ", array_slice($args, 0, count($args) - count($numbers)));
+        return array($name, $numbers);
     }
 
     /**
