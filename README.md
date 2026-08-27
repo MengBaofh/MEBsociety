@@ -1,6 +1,6 @@
 # MEBSociety
 
-> ⚠️ **紧急通知**：None
+> ⚠️ **Depend**：[MEBForms](https://github.com/MengBaofh/MEBForms)
 
 ## 快速上手
 
