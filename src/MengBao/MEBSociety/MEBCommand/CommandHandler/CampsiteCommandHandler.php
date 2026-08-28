@@ -10,6 +10,8 @@ use MengBao\MEBSociety\Tools\ArrayPage;
 use MengBao\MEBSociety\CallbackTask;
 use MengBao\MEBSociety\Units\Economy;
 use MengBao\MEBSociety\Units\Campsite;
+use MengBao\MEBSociety\Units\CampsiteItem;
+use MengBao\MEBSociety\Units\CampsiteLevel;
 use MengBao\MEBSociety\Units\MultiWorld;
 use MengBao\MEBSociety\MEBCommand\CommandHandler\CommandHandlerInterface;
 
@@ -81,6 +83,21 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             case "out":
                 $this->out($sender, $args);
                 break;
+            case "donate":
+                $this->donate($sender, $args);
+                break;
+            case "pool":
+                $this->pool($sender, $args);
+                break;
+            case "upgrade":
+                $this->upgrade($sender);
+                break;
+            case "welfare":
+                $this->welfare($sender, $args);
+                break;
+            case "claim":
+                $this->claim($sender);
+                break;
             default:
                 $sender->sendMessage($this->logo . "§c未知指令，输入/" . $c_name . " help来获取帮助!");
         }
@@ -105,6 +122,236 @@ class CampsiteCommandHandler implements CommandHandlerInterface
         $sender->sendMessage("§e> /" . $c_name . " power <add/remove> <player_name> <power_id> --- 给予/移除玩家的营地权力");
         $sender->sendMessage("§e> /" . $c_name . " search <campsite_id> --- 查询某营地的信息，不填则查询自己所在营地信息");
         $sender->sendMessage("§e> /" . $c_name . " out <player_name> --- 将某人请出营地");
+        $sender->sendMessage("§e> /" . $c_name . " donate <money> --- 向营地捐献池捐钱");
+        $sender->sendMessage("§e> /" . $c_name . " pool [page] --- 查看捐献池与捐献记录");
+        $sender->sendMessage("§e> /" . $c_name . " upgrade --- 用捐献池升级营地(仅市长)");
+        $sender->sendMessage("§e> /" . $c_name . " welfare [set <item_key> <num>|money <money>] --- 查看/设置福利箱(设置仅市长)");
+        $sender->sendMessage("§e> /" . $c_name . " claim --- 领取本周的营地福利箱");
+    }
+
+    /**
+     * 向捐献池捐钱
+     */
+    public function donate(CommandSender $sender, array $args): void
+    {
+        $senderName = strtolower($sender->getName());
+        if ($sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c控制台禁止输入！");
+            return;
+        }
+        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($senderName)) {
+            $sender->sendMessage($this->logo . "§c你还没有加入营地！");
+            return;
+        }
+        if (!isset($args[1]) || !is_numeric($args[1]) || (float) $args[1] <= 0) {
+            $sender->sendMessage($this->logo . "§c请输入要捐献的游戏币数量(正数)！");
+            return;
+        }
+        $money = (float) $args[1];
+        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
+        $result = CampsiteLevel::getInstance($this->plugin)->donate($senderName, $CID, $money);
+        if ($result !== CampsiteLevel::OK) {
+            $sender->sendMessage($this->logo . CampsiteLevel::getInstance($this->plugin)->getResultMsg($result));
+            return;
+        }
+        $pool = CampsiteLevel::getInstance($this->plugin)->getPoolMoney($CID);
+        $sender->sendMessage($this->logo . "§a成功捐献" . $money . "游戏币，捐献池现有：" . $pool);
+        //让营地里的人知道池子涨了，凑升级费用时不用互相问
+        foreach (Campsite::getInstance($this->plugin)->getAllMember($CID) as $name) {
+            if ($name === $senderName)
+                continue;
+            $member = $this->plugin->getServer()->getPlayerExact($name);
+            if ($member !== null)
+                $member->sendMessage($this->logo . "§a成员" . $senderName . "向捐献池捐了" . $money . "游戏币，当前共" . $pool . "。");
+        }
+    }
+
+    /**
+     * 查看捐献池与捐献记录
+     */
+    public function pool(CommandSender $sender, array $args): void
+    {
+        $senderName = strtolower($sender->getName());
+        if ($sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c控制台禁止输入！");
+            return;
+        }
+        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($senderName)) {
+            $sender->sendMessage($this->logo . "§c你还没有加入营地！");
+            return;
+        }
+        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
+        $level = CampsiteLevel::getInstance($this->plugin);
+        $curLevel = $level->getLevel($CID);
+        $sender->sendMessage("--------" . $this->logo . "营地捐献池--------");
+        $sender->sendMessage("§e营地等级：§f" . $curLevel . "§7/" . $level->getMaxLevel());
+        $sender->sendMessage("§e捐献池：§f" . $level->getPoolMoney($CID));
+        if ($curLevel >= $level->getMaxLevel())
+            $sender->sendMessage("§e升级所需：§a已满级");
+        else {
+            $sender->sendMessage("§e升到" . ($curLevel + 1) . "级需要：§f" . $level->getUpgradeCost($curLevel));
+            $lack = $level->getUpgradeLack($CID);
+            $sender->sendMessage("§e还差：§f" . ($lack <= 0 ? "§a已凑齐，市长可执行 /campsite upgrade" : $lack));
+        }
+
+        $record = $level->getPoolRecord($CID);
+        if ($record === array()) {
+            $sender->sendMessage("§7还没有人捐献过。");
+            return;
+        }
+        arsort($record);  //捐得多的排前面
+        $page = isset($args[1]) && is_numeric($args[1]) ? (int) $args[1] : 1;
+        $recordPage = new ArrayPage($record, Campsite::getInstance($this->plugin)->getAppEachNum());
+        if (!$recordPage->isValidPage($page)) {
+            $sender->sendMessage($this->logo . "§c页码不合理！(1~" . $recordPage->getTotalPages() . ")");
+            return;
+        }
+        $sender->sendMessage("§e捐献记录<" . $page . "/" . $recordPage->getTotalPages() . ">：");
+        foreach ($recordPage->getContent($page) as $name => $money)
+            $sender->sendMessage("§f" . $name . " §6=> §f" . $money);
+    }
+
+    /**
+     * 用捐献池升级营地
+     */
+    public function upgrade(CommandSender $sender): void
+    {
+        $senderName = strtolower($sender->getName());
+        if ($sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c控制台禁止输入！");
+            return;
+        }
+        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($senderName)) {
+            $sender->sendMessage($this->logo . "§c你还没有加入营地！");
+            return;
+        }
+        //升级要花掉全营地凑的钱，只有市长能拍这个板
+        if (!Campsite::getInstance($this->plugin)->isOwner($senderName)) {
+            $sender->sendMessage($this->logo . CampsiteLevel::getInstance($this->plugin)->getResultMsg(CampsiteLevel::ERR_NO_POWER));
+            return;
+        }
+        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
+        $level = CampsiteLevel::getInstance($this->plugin);
+        $cost = $level->getUpgradeCost($level->getLevel($CID));
+        $result = $level->upgrade($CID);
+        if ($result !== CampsiteLevel::OK) {
+            $sender->sendMessage($this->logo . $level->getResultMsg($result));
+            return;
+        }
+        $newLevel = $level->getLevel($CID);
+        $unlocked = CampsiteItem::getInstance($this->plugin)->getByLevel($newLevel);
+        $sender->sendMessage($this->logo . "§a营地成功升级到" . $newLevel . "级，消耗捐献池" . $cost . "！");
+        //解锁了新专属物品的话要广播，成员才知道福利箱能放新东西了
+        $msg = $this->logo . "§a营地已升级到§f" . $newLevel . "§a级！";
+        if ($unlocked !== null)
+            $msg .= "§e解锁营地专属物品：" . $unlocked["name"];
+        foreach (Campsite::getInstance($this->plugin)->getAllMember($CID) as $name) {
+            if ($name === $senderName)
+                continue;
+            $member = $this->plugin->getServer()->getPlayerExact($name);
+            if ($member !== null)
+                $member->sendMessage($msg);
+        }
+        if ($unlocked !== null)
+            $sender->sendMessage($this->logo . "§e解锁营地专属物品：" . $unlocked["name"] . "§e，可用 /campsite welfare set " . $unlocked["key"] . " <num> 放进福利箱");
+    }
+
+    /**
+     * 查看或设置福利箱
+     */
+    public function welfare(CommandSender $sender, array $args): void
+    {
+        $senderName = strtolower($sender->getName());
+        if ($sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c控制台禁止输入！");
+            return;
+        }
+        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($senderName)) {
+            $sender->sendMessage($this->logo . "§c你还没有加入营地！");
+            return;
+        }
+        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
+        $level = CampsiteLevel::getInstance($this->plugin);
+        $item = CampsiteItem::getInstance($this->plugin);
+
+        //不带子参数是查看，全体成员都能看
+        if (!isset($args[1])) {
+            $sender->sendMessage("--------" . $this->logo . "营地福利箱--------");
+            $sender->sendMessage("§e附带游戏币：§f" . $level->getWelfareMoney($CID));
+            $welfare = $level->getWelfare($CID);
+            if ($welfare === array())
+                $sender->sendMessage("§7福利箱里还没有物品。");
+            else {
+                foreach ($welfare as $key => $num)
+                    $sender->sendMessage("§f" . $item->getName((string) $key) . " §r§6×" . $num . " §7(" . $key . ")");
+            }
+            $sender->sendMessage("§e本周状态：" . ($level->hasClaimed($CID, $senderName) ? "§c已领取" : "§a可领取，输入 /campsite claim"));
+            $unlocked = $level->getUnlockedItemKeys($CID);
+            $sender->sendMessage("§e已解锁的专属物品：§f" . ($unlocked === array() ? "无" : implode(", ", $unlocked)));
+            return;
+        }
+
+        //设置福利箱内容只有市长能做
+        if (!Campsite::getInstance($this->plugin)->isOwner($senderName)) {
+            $sender->sendMessage($this->logo . CampsiteLevel::getInstance($this->plugin)->getResultMsg(CampsiteLevel::ERR_NO_POWER));
+            return;
+        }
+        if ($args[1] === "money") {
+            if (!isset($args[2]) || !is_numeric($args[2]) || (float) $args[2] < 0) {
+                $sender->sendMessage($this->logo . "§c请输入非负的游戏币数量！");
+                return;
+            }
+            $result = $level->setWelfareMoney($CID, (float) $args[2]);
+            $sender->sendMessage($this->logo . ($result === CampsiteLevel::OK
+                ? "§a成功把福利箱的游戏币设为" . (float) $args[2] . "！"
+                : $level->getResultMsg($result)));
+            return;
+        }
+        if ($args[1] === "set") {
+            if (!isset($args[2])) {
+                $sender->sendMessage($this->logo . "§c未输入专属物品标识！已解锁：" . implode(", ", $level->getUnlockedItemKeys($CID)));
+                return;
+            }
+            if (!isset($args[3]) || !is_numeric($args[3]) || (int) $args[3] < 0) {
+                $sender->sendMessage($this->logo . "§c请输入每人每周可领的数量(0表示移出福利箱)！");
+                return;
+            }
+            $key = (string) $args[2];
+            $result = $level->setWelfareItem($CID, $key, (int) $args[3]);
+            if ($result !== CampsiteLevel::OK) {
+                $sender->sendMessage($this->logo . $level->getResultMsg($result));
+                return;
+            }
+            $sender->sendMessage($this->logo . ((int) $args[3] === 0
+                ? "§a已把" . $item->getName($key) . "§a移出福利箱！"
+                : "§a成功设置福利箱：" . $item->getName($key) . "§a×" . (int) $args[3] . "/人/周"));
+            return;
+        }
+        $sender->sendMessage($this->logo . "§c用法：/campsite welfare [set <item_key> <num>|money <money>]");
+    }
+
+    /**
+     * 领取本周的福利箱
+     */
+    public function claim(CommandSender $sender): void
+    {
+        $senderName = strtolower($sender->getName());
+        if ($sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c控制台禁止输入！");
+            return;
+        }
+        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($senderName)) {
+            $sender->sendMessage($this->logo . "§c你还没有加入营地！");
+            return;
+        }
+        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
+        $level = CampsiteLevel::getInstance($this->plugin);
+        $result = $level->claimWelfare($senderName, $CID);
+        if ($result !== CampsiteLevel::OK) {
+            $sender->sendMessage($this->logo . $level->getResultMsg($result));
+            return;
+        }
+        $sender->sendMessage($this->logo . "§a成功领取本周的营地福利箱！");
     }
 
     public function create(CommandSender $sender, array $args): void
@@ -240,7 +487,7 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             if ($confirmed) {
                 // 确认后执行的操作
                 $sender->sendMessage($this->logo . "§a操作已确认，成功将营地转让给" . $args[1] . "。");
-                //修改营长\两个玩家的营地职位及权限
+                //修改市长\两个玩家的营地职位及权限
                 $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
                 Campsite::getInstance($this->plugin)->changeOwner($CID, $senderName, $args[1]);
             } else
@@ -401,7 +648,7 @@ class CampsiteCommandHandler implements CommandHandlerInterface
         }
         $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
         if (Campsite::getInstance($this->plugin)->getOwner($CID) === $senderName)
-            $sender->sendMessage($this->logo . "§c需要先转让营长身份再退出营地！");
+            $sender->sendMessage($this->logo . "§c需要先转让市长身份再退出营地！");
         else {
             Campsite::getInstance($this->plugin)->changePost($senderName, null);
             Campsite::getInstance($this->plugin)->changePower($senderName, [false, false, false, false, false]);
@@ -673,11 +920,16 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             }
             $CID = $args[1];
         }
+        $CID = (int) $CID;
+        $level = CampsiteLevel::getInstance($this->plugin);
         $sender->sendMessage("--------" . $this->logo . "营地信息查询" . "--------");
         $sender->sendMessage("营地名：" . Campsite::getInstance($this->plugin)->getCName($CID));
         $sender->sendMessage("营地ID：" . $CID);
+        $sender->sendMessage("营地等级：" . $level->getLevel($CID) . "/" . $level->getMaxLevel());
         $sender->sendMessage("营地人数：" . count(Campsite::getInstance($this->plugin)->getAllMember($CID)));
-        $sender->sendMessage("营长：" . Campsite::getInstance($this->plugin)->getOwner($CID));
+        $sender->sendMessage("市长：" . Campsite::getInstance($this->plugin)->getOwner($CID));
+        $unlocked = $level->getUnlockedItemKeys($CID);
+        $sender->sendMessage("已解锁专属物品：" . ($unlocked === array() ? "无" : implode(", ", $unlocked)));
     }
     public function out(CommandSender $sender, array $args): void
     {
@@ -709,7 +961,7 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             return;
         }
         if (!Campsite::getInstance($this->plugin)->isOwner($senderName) && Campsite::getInstance($this->plugin)->isOwner($args[1])) {
-            $sender->sendMessage($this->logo . "§c你没有权限踢出营长！");
+            $sender->sendMessage($this->logo . "§c你没有权限踢出市长！");
             return;
         }
         if (!Campsite::getInstance($this->plugin)->isSameCampsite($senderName, $args[1])) {

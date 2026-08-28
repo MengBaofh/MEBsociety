@@ -31,6 +31,11 @@ class Shop
     public const ERR_PLAYER_NOT_FOUND = -10;  //玩家数据不存在
     public const ERR_ITEM_MODIFIED = -11;  //背包里只有被改过(带NBT)的同类物品
 
+    //营地专属物品市场的额外结果码
+    public const ERR_CAMP_UNKNOWN = -12;  //专属物品标识不存在
+    public const ERR_CAMP_NO_STOCK = -13;  //市场上没有存货
+    public const ERR_CAMP_AMOUNT = -14;  //数量不合法
+
     public const TYPE_ITEM = "item";
     public const TYPE_PREFIX = "prefix";
 
@@ -426,9 +431,153 @@ class Shop
                 return "§c玩家不在线！";
             case self::ERR_PLAYER_NOT_FOUND:
                 return "§c找不到你的玩家数据！";
+            case self::ERR_CAMP_UNKNOWN:
+                return "§c未知的营地专属物品标识！";
+            case self::ERR_CAMP_NO_STOCK:
+                return "§c市场上的存货不足！营地专属物品只能由其他玩家挂卖，请稍后再来。";
+            case self::ERR_CAMP_AMOUNT:
+                return "§c数量必须为正整数！";
             default:
                 return "§a操作成功！";
         }
+    }
+
+    // ------------------------------------------------------------------
+    // 营地专属物品市场
+    // ------------------------------------------------------------------
+
+    /**
+     * 营地专属物品走的是"卖买"，和常规商品的"买卖"是两套逻辑
+     *
+     * 常规商品：服务器无限供货，玩家买了就有，卖了就没。
+     * 专属物品：服务器不产出，只能靠营地升级解锁后由成员从福利箱拿到，
+     * 所以市场里的货全部来自其他玩家的挂卖——先有人卖，才有人能买。
+     * 存货为0时买不到，这是设计如此，不是bug：
+     * 这样专属物品的流通量始终等于各营地实际产出的量，
+     * 不会出现"营地才3级但市场上买得到10级材料"的情况。
+     */
+
+    /**
+     * 市场上某种专属物品的存货数量
+     */
+    public function getCampStock(string $key): int
+    {
+        $stock = $this->plugin->campMarket->get($key);
+        return is_array($stock) ? max(0, (int) ($stock["stock"] ?? 0)) : 0;
+    }
+
+    /**
+     * 全部有存货的专属物品，键为标识
+     *
+     * @return array<string, int>
+     */
+    public function getAllCampStock(): array
+    {
+        $all = array();
+        foreach ($this->plugin->campMarket->getAll() as $key => $stock) {
+            $num = is_array($stock) ? (int) ($stock["stock"] ?? 0) : 0;
+            if ($num > 0)
+                $all[(string) $key] = $num;
+        }
+        return $all;
+    }
+
+    /**
+     * 玩家把专属物品卖给市场的单价
+     */
+    public function getCampSellPrice(string $key): float
+    {
+        $rate = (float) $this->plugin->shopConfig->get("营地专属物品出售价格系数");
+        return round(CampsiteItem::getInstance($this->plugin)->getPrice($key) * $rate, 2);
+    }
+
+    /**
+     * 玩家从市场买专属物品的单价
+     *
+     * 买价一定高于卖价，中间的差价被系统收掉。
+     * 这是为了防止"低买高卖"刷钱：如果买价≤卖价，
+     * 玩家可以无限反复买入卖出，游戏币就凭空长出来了。
+     */
+    public function getCampBuyPrice(string $key): float
+    {
+        $rate = (float) $this->plugin->shopConfig->get("营地专属物品购买价格系数");
+        return round(CampsiteItem::getInstance($this->plugin)->getPrice($key) * $rate, 2);
+    }
+
+    /**
+     * 改市场存货，返回改完之后的数量
+     */
+    private function addCampStock(string $key, int $delta): int
+    {
+        $stock = max(0, $this->getCampStock($key) + $delta);
+        $this->plugin->campMarket->set($key, array("stock" => $stock));
+        $this->plugin->campMarket->save();
+        return $stock;
+    }
+
+    /**
+     * 玩家把营地专属物品卖给市场
+     *
+     * @return int 结果码，成功为OK
+     */
+    public function campSell(string $playerName, string $key, int $num = 1): int
+    {
+        $define = CampsiteItem::getInstance($this->plugin)->getByKey($key);
+        if ($define === null)
+            return self::ERR_CAMP_UNKNOWN;
+        if ($num <= 0)
+            return self::ERR_CAMP_AMOUNT;
+        if (!Players::getInstance($this->plugin)->playerExist($playerName))
+            return self::ERR_PLAYER_NOT_FOUND;
+        $player = $this->plugin->getServer()->getPlayerExact($playerName);
+        if ($player === null)
+            return self::ERR_OFFLINE;
+        if (CampsiteItem::getInstance($this->plugin)->countInInventory($player, $key) < $num)
+            return self::ERR_NOT_ENOUGH_ITEM;
+
+        //先扣物品再给钱，扣不满就把已扣的数量按实际给钱，不会出现凭空多给
+        $removed = CampsiteItem::getInstance($this->plugin)->removeFromInventory($player, $key, $num);
+        if ($removed <= 0)
+            return self::ERR_NOT_ENOUGH_ITEM;
+        $this->addCampStock($key, $removed);
+        Economy::getInstance($this->plugin)->addMoney($playerName, $this->getCampSellPrice($key) * $removed);
+        return self::OK;
+    }
+
+    /**
+     * 玩家从市场买营地专属物品
+     *
+     * @return int 结果码，成功为OK
+     */
+    public function campBuy(string $playerName, string $key, int $num = 1): int
+    {
+        $define = CampsiteItem::getInstance($this->plugin)->getByKey($key);
+        if ($define === null)
+            return self::ERR_CAMP_UNKNOWN;
+        if ($num <= 0)
+            return self::ERR_CAMP_AMOUNT;
+        if (!Players::getInstance($this->plugin)->playerExist($playerName))
+            return self::ERR_PLAYER_NOT_FOUND;
+        $player = $this->plugin->getServer()->getPlayerExact($playerName);
+        if ($player === null)
+            return self::ERR_OFFLINE;
+        if ($this->getCampStock($key) < $num)
+            return self::ERR_CAMP_NO_STOCK;
+
+        $item = CampsiteItem::getInstance($this->plugin)->create($key, $num);
+        if ($item === null)
+            return self::ERR_ITEM_INVALID;
+        $price = $this->getCampBuyPrice($key) * $num;
+        if (Economy::getInstance($this->plugin)->getMoney($playerName) < $price)
+            return self::ERR_NO_MONEY;
+        //先确认背包放得下再扣钱和扣存货
+        if (!$player->getInventory()->canAddItem($item))
+            return self::ERR_INVENTORY_FULL;
+
+        Economy::getInstance($this->plugin)->addMoney($playerName, -$price);
+        $this->addCampStock($key, -$num);
+        $player->getInventory()->addItem($item);
+        return self::OK;
     }
 
     /**

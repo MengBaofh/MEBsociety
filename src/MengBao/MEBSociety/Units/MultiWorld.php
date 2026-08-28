@@ -103,20 +103,60 @@ class MultiWorld  //打包好的方法
 
     /**
      * 获取服务器全部的世界(文件夹)名
+     *
+     * 路径用核心给的数据目录拼，不写死"./worlds"：
+     * 相对路径依赖启动时的工作目录，用启动脚本或面板开服时
+     * 工作目录不一定是服务端根目录，那样一个世界都扫不到。
+     * 同时只认文件夹，worlds里放的说明文件之类不该被当成世界。
      */
     public function getAllWolrdName(): array
     {
-        $worldsDir = "./worlds"; // worlds文件夹的路径
+        $worldsDir = Server::getInstance()->getDataPath() . "worlds";
         $worldNames = [];
-        // 检查worlds文件夹是否存在
-        if (is_dir($worldsDir) && $handle = opendir($worldsDir)) {
-            // 遍历worlds文件夹中的文件
-            while (false !== ($entry = readdir($handle)))
-                if ($entry != "." && $entry != "..")
-                    array_push($worldNames, $entry);
-            closedir($handle);
-        }
+        if (!is_dir($worldsDir) || !($handle = opendir($worldsDir)))
+            return $worldNames;
+        while (false !== ($entry = readdir($handle)))
+            if ($entry !== "." && $entry !== ".." && is_dir($worldsDir . DIRECTORY_SEPARATOR . $entry))
+                array_push($worldNames, $entry);
+        closedir($handle);
         return $worldNames;
+    }
+
+    /**
+     * 是否开启开服自动加载全部世界
+     */
+    public function hasAutoLoad(): bool
+    {
+        return (bool) $this->plugin->multiWorldConfig->get("自动加载全部世界", true);
+    }
+
+    /**
+     * 开服时自动加载全部世界
+     *
+     * 以前每次开服都要管理员手动 /mw load 一遍，漏掉哪个那个世界就传送不了；
+     * 而且"是否已加载"是存在配置里的，重启后配置说已加载、实际没加载，
+     * 玩家点传送只会拿到一句"世界未加载"。
+     *
+     * 现在开服时直接把所有已生成的世界加载好，
+     * 并按真实状态回写"是否已加载"，配置和实际就不会再对不上。
+     *
+     * @return array{loaded: int, failed: string[]} 成功加载的个数与失败的世界名
+     */
+    public function loadAllWorlds(): array
+    {
+        $loaded = 0;
+        $failed = [];
+        foreach ($this->getAllWolrdName() as $worldName) {
+            if ($this->isWorldLoaded($worldName))
+                continue;  //默认世界这类核心已经加载过的跳过
+            $result = $this->loadWorldByName($worldName);
+            if ($result === 1)
+                $loaded++;
+            elseif ($result === -3)
+                //-1(未生成)只说明那是个普通文件夹，不算失败；-3才是真的加载出错
+                $failed[] = $worldName;
+        }
+        return array("loaded" => $loaded, "failed" => $failed);
     }
 
     /**

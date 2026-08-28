@@ -15,6 +15,8 @@ use MengBao\MEBSociety\Units\Shop;
 use MengBao\MEBSociety\Units\Players;
 use MengBao\MEBSociety\Units\Economy;
 use MengBao\MEBSociety\Units\Campsite;
+use MengBao\MEBSociety\Units\CampsiteItem;
+use MengBao\MEBSociety\Units\CampsiteLevel;
 use MengBao\MEBSociety\Units\MultiWorld;
 
 /**
@@ -268,6 +270,8 @@ class GuiHandler
             ["加入营地", fn(Player $p) => $this->campsiteInput($p, "campsite join", "加入营地", "请输入营地ID：", "<campsite_id>")],
             ["营地传送", fn(Player $p) => $this->dispatch($p, "campsite gohome")],
             ["营地查询", fn(Player $p) => $this->campsiteInput($p, "campsite search", "营地查询", "请输入营地ID：", "<campsite_id>")],
+            ["营地等级与捐献池", fn(Player $p) => $this->openCampsitePool($p)],
+            ["营地福利箱", fn(Player $p) => $this->openCampsiteWelfare($p)],
             ["营地管理", fn(Player $p) => $this->openCampsiteManage($p)],
             ["退出营地", fn(Player $p) => $this->dispatch($p, "campsite quit")],
             ["§c返回上一级", fn(Player $p) => $this->openMain($p)],
@@ -413,6 +417,154 @@ class GuiHandler
             "同意",
             "拒绝"
         );
+    }
+
+    /**
+     * 营地等级与捐献池
+     */
+    private function openCampsitePool(Player $player): void
+    {
+        $playerName = strtolower($player->getName());
+        $back = fn(Player $p) => $this->openCampsite($p);
+        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($playerName)) {
+            $this->tip($player, $this->logo . "营地捐献池", "§c你还没有加入营地！", $back);
+            return;
+        }
+        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($playerName);
+        $level = CampsiteLevel::getInstance($this->plugin);
+        $curLevel = $level->getLevel($CID);
+        $isMax = $curLevel >= $level->getMaxLevel();
+
+        $content = "§e营地等级：§f" . $curLevel . "§7/" . $level->getMaxLevel() . "\n"
+            . "§e捐献池：§f" . $level->getPoolMoney($CID) . "\n";
+        if ($isMax)
+            $content .= "§e升级所需：§a已满级\n";
+        else {
+            $content .= "§e升到" . ($curLevel + 1) . "级需要：§f" . $level->getUpgradeCost($curLevel) . "\n";
+            $lack = $level->getUpgradeLack($CID);
+            $content .= "§e还差：§f" . ($lack <= 0 ? "§a已凑齐" : $lack) . "\n";
+        }
+        $unlocked = $level->getUnlockedItemKeys($CID);
+        $content .= "§e已解锁专属物品：§f" . ($unlocked === [] ? "无" : implode(", ", $unlocked));
+
+        $record = $level->getPoolRecord($CID);
+        if ($record !== []) {
+            arsort($record);
+            $content .= "\n\n§e捐献记录：";
+            foreach ($record as $name => $money)
+                $content .= "\n§f" . $name . " §6=> §f" . $money;
+        }
+
+        $entries = [
+            ["§a捐献游戏币", fn(Player $p) => $this->form(
+                $p,
+                "向捐献池捐献",
+                ["money" => ["label" => "请输入要捐献的游戏币数量：", "placeholder" => "1000"]],
+                function (Player $p, array $v): void {
+                    if ($v["money"] === "" || !is_numeric($v["money"]) || (float) $v["money"] <= 0) {
+                        $this->tip($p, "向捐献池捐献", "§c游戏币数量必须是正数！", fn(Player $p) => $this->openCampsitePool($p));
+                        return;
+                    }
+                    $this->dispatch($p, "campsite donate " . (float) $v["money"]);
+                }
+            )],
+        ];
+        //升级会花掉全营地凑的钱，按钮只给市长
+        if (!$isMax && Campsite::getInstance($this->plugin)->isOwner($playerName))
+            $entries[] = ["§6升级营地(市长)", fn(Player $p) => $this->dispatch($p, "campsite upgrade")];
+        $entries[] = ["§c返回上一级", $back];
+        $this->menu($player, $this->logo . "营地等级与捐献池", $content, $entries);
+    }
+
+    /**
+     * 营地福利箱
+     */
+    private function openCampsiteWelfare(Player $player): void
+    {
+        $playerName = strtolower($player->getName());
+        $back = fn(Player $p) => $this->openCampsite($p);
+        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($playerName)) {
+            $this->tip($player, $this->logo . "营地福利箱", "§c你还没有加入营地！", $back);
+            return;
+        }
+        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($playerName);
+        $level = CampsiteLevel::getInstance($this->plugin);
+        $item = CampsiteItem::getInstance($this->plugin);
+        $claimed = $level->hasClaimed($CID, $playerName);
+
+        $content = "§e附带游戏币：§f" . $level->getWelfareMoney($CID) . "\n§e箱内物品：";
+        $welfare = $level->getWelfare($CID);
+        if ($welfare === [])
+            $content .= "§7空";
+        else {
+            foreach ($welfare as $key => $num)
+                $content .= "\n§f" . $item->getName((string) $key) . "§r §6×" . $num;
+        }
+        $content .= "\n\n§e本周状态：" . ($claimed ? "§c已领取" : "§a可领取")
+            . "\n§7福利箱每周一刷新，每人每周可领一次。";
+
+        $entries = [];
+        if (!$claimed)
+            $entries[] = ["§a领取本周福利箱", fn(Player $p) => $this->dispatch($p, "campsite claim")];
+        //设置福利箱内容只有市长能做
+        if (Campsite::getInstance($this->plugin)->isOwner($playerName)) {
+            $entries[] = ["§6设置箱内物品(市长)", fn(Player $p) => $this->campsiteWelfareSet($p, $CID)];
+            $entries[] = ["§6设置附带游戏币(市长)", fn(Player $p) => $this->form(
+                $p,
+                "设置福利箱游戏币",
+                ["money" => ["label" => "请输入每人每周可领的游戏币：", "placeholder" => "0"]],
+                function (Player $p, array $v): void {
+                    if ($v["money"] === "" || !is_numeric($v["money"]) || (float) $v["money"] < 0) {
+                        $this->tip($p, "设置福利箱游戏币", "§c游戏币数量必须是非负数！", fn(Player $p) => $this->openCampsiteWelfare($p));
+                        return;
+                    }
+                    $this->dispatch($p, "campsite welfare money " . (float) $v["money"]);
+                }
+            )];
+        }
+        $entries[] = ["§c返回上一级", $back];
+        $this->menu($player, $this->logo . "营地福利箱", $content, $entries);
+    }
+
+    /**
+     * 市长设置福利箱里的专属物品
+     *
+     * 下拉框里只列已解锁的物品，没解锁的选了也会被指令拦下来，
+     * 不如干脆不给选。
+     */
+    private function campsiteWelfareSet(Player $player, int $CID): void
+    {
+        $level = CampsiteLevel::getInstance($this->plugin);
+        $item = CampsiteItem::getInstance($this->plugin);
+        $back = fn(Player $p) => $this->openCampsiteWelfare($p);
+        $keys = $level->getUnlockedItemKeys($CID);
+        if ($keys === []) {
+            $this->tip($player, $this->logo . "设置福利箱", "§c营地还没有解锁任何专属物品，先升级营地吧！", $back);
+            return;
+        }
+        $labels = [];
+        foreach ($keys as $key)
+            $labels[] = $item->getName($key);
+
+        $this->form($player, "设置福利箱物品", [
+            "key" => [
+                "label" => "请选择专属物品：",
+                "kind" => "dropdown",
+                "options" => $labels,
+                "values" => $keys,
+            ],
+            "num" => ["label" => "每人每周可领数量(0表示移出福利箱)：", "placeholder" => "1"],
+        ], function (Player $p, array $v) use ($back): void {
+            if ($v["key"] === null) {
+                $this->tip($p, "设置福利箱", "§c请选择一种专属物品！", $back);
+                return;
+            }
+            if ($v["num"] === "" || !is_numeric($v["num"]) || (int) $v["num"] < 0) {
+                $this->tip($p, "设置福利箱", "§c数量必须是非负整数！", $back);
+                return;
+            }
+            $this->dispatch($p, "campsite welfare set " . $v["key"] . " " . (int) $v["num"]);
+        });
     }
 
     /* ---------------------------------------------------------------- 同居系统 */
@@ -762,6 +914,7 @@ class GuiHandler
             ["出售物品", fn(Player $p) => $this->openShopList($p, "sell")],
             ["购买称号", fn(Player $p) => $this->openShopList($p, "prefix")],
             ["查看全部商品", fn(Player $p) => $this->openShopAll($p)],
+            ["营地专属物品市场", fn(Player $p) => $this->openCampMarket($p)],
         ];
         //没管理权限的玩家就不给这个入口，免得点进去只收到一句"没有权限"
         $canManage = Players::getInstance($this->plugin)->isMaster($playerName)
@@ -895,6 +1048,90 @@ class GuiHandler
                 . ($config["可出售"] ? $shop->getTotalPrice($SID, 1, false) : "§c不可卖§r") . "\n";
         }
         $this->openText($player, $this->logo . "全部商品", $text, $back);
+    }
+
+    /* ------------------------------------------------ 营地专属物品市场 */
+
+    /**
+     * 营地专属物品市场
+     *
+     * 和常规商品分开一个界面：专属物品的货源是玩家挂卖，
+     * 存货为0时就买不到，混在常规商品列表里玩家会以为是bug。
+     */
+    private function openCampMarket(Player $player): void
+    {
+        $shop = Shop::getInstance($this->plugin);
+        $item = CampsiteItem::getInstance($this->plugin);
+        $back = fn(Player $p) => $this->openShop($p);
+        $entries = [];
+        foreach ($item->getAll() as $level => $define) {
+            $key = (string) $define["key"];
+            $stock = $shop->getCampStock($key);
+            $entries[] = [
+                $define["name"] . "§r\n§7解锁Lv" . $level . " §a买" . $shop->getCampBuyPrice($key)
+                    . " §b卖" . $shop->getCampSellPrice($key) . " §e存货" . $stock,
+                fn(Player $p) => $this->openCampMarketDetail($p, $key),
+            ];
+        }
+        $entries[] = ["§c返回上一级", $back];
+        $this->menu(
+            $player,
+            $this->logo . "营地专属物品市场",
+            "§7货源全部来自玩家挂卖，服务器不产出。\n§7营地升级后可从福利箱获得这些物品。",
+            $entries
+        );
+    }
+
+    /**
+     * 单个专属物品的买卖
+     */
+    private function openCampMarketDetail(Player $player, string $key): void
+    {
+        $shop = Shop::getInstance($this->plugin);
+        $item = CampsiteItem::getInstance($this->plugin);
+        $back = fn(Player $p) => $this->openCampMarket($p);
+        $define = $item->getByKey($key);
+        if ($define === null) {
+            $this->tip($player, $this->logo . "营地专属物品", "§c未知的专属物品！", $back);
+            return;
+        }
+        $playerName = strtolower($player->getName());
+        $held = $item->countInInventory($player, $key);
+        $content = "§e名称：§f" . $define["name"] . "§r\n"
+            . "§e标识：§f" . $key . "\n"
+            . "§e解锁所需营地等级：§f" . $define["level"] . "\n"
+            . "§e购买单价：§f" . $shop->getCampBuyPrice($key) . "\n"
+            . "§e出售单价：§f" . $shop->getCampSellPrice($key) . "\n"
+            . "§e市场存货：§f" . $shop->getCampStock($key) . "\n"
+            . "§e你持有：§f" . $held . "\n"
+            . "§e你的游戏币：§f" . Economy::getInstance($this->plugin)->getMoney($playerName);
+
+        $this->menu($player, $this->logo . "营地专属物品", $content, [
+            ["§a购买指定数量", fn(Player $p) => $this->campMarketAmount($p, $key, "buy")],
+            ["§b挂卖指定数量", fn(Player $p) => $this->campMarketAmount($p, $key, "sell")],
+            ["§c返回上一级", $back],
+        ]);
+    }
+
+    /**
+     * 专属物品买卖的数量输入
+     */
+    private function campMarketAmount(Player $player, string $key, string $mode): void
+    {
+        $action = $mode === "sell" ? "挂卖" : "购买";
+        $back = fn(Player $p) => $this->openCampMarketDetail($p, $key);
+        $this->form(
+            $player,
+            $action . CampsiteItem::getInstance($this->plugin)->getName($key),
+            ["num" => ["label" => "请输入" . $action . "数量：", "placeholder" => "1"]],
+            function (Player $p, array $v) use ($key, $mode, $action, $back): void {
+                if ($v["num"] === "" || !is_numeric($v["num"]) || (int) $v["num"] <= 0) {
+                    $this->tip($p, $action . "营地专属物品", "§c数量必须是正整数！", $back);
+                    return;
+                }
+                $this->dispatch($p, "mebshop camp " . $mode . " " . $key . " " . (int) $v["num"]);
+            }
+        );
     }
 
     /**

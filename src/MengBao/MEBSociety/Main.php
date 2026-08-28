@@ -51,6 +51,7 @@ class Main extends PluginBase
     public Config $prefixes;  //称号列表文件
     public Config $shopConfig;  //GUI商店配置文件
     public Config $shops;  //GUI商店列表文件
+    public Config $campMarket;  //营地专属物品市场存货文件
     public Config $offlineMessages;
     public WaitingConfirmation $waitingConfirmation;  //等候答复对象
     public OfflineMessage $offlineMessage;  //离线消息对象
@@ -78,7 +79,7 @@ class Main extends PluginBase
             $this->getDataFolder() . "BasicConfig.yml",
             Config::YAML,
             array(
-                "version" => "2.0.7",
+                "version" => "2.0.8",
                 "update" => 0,
                 "禁止使用的指令" => ["/op", "/deop"],
                 "最高权限" => null,
@@ -95,6 +96,12 @@ class Main extends PluginBase
                 "服务器最大营地个数" => 10000,
                 "营地每日召集次数上限" => 1,
                 "营地召集有效时间(s)" => 10,
+                //营地等级上限，每级解锁一种营地专属物品(专属物品表写死在代码里)
+                "营地最大等级" => 10,
+                //从n级升到n+1级的费用 = 基数 * n，钱从营地捐献池出
+                "营地升级费用基数" => 50000,
+                //福利箱里每种专属物品每人每周最多领多少个
+                "福利箱每种物品数量上限" => 8,
             )
         );
         $this->campsites = new Config($this->getDataFolder() . "Campsites.yml", Config::YAML, []);
@@ -127,6 +134,8 @@ class Main extends PluginBase
             array(
                 "是否开启传送限制" => true,
                 "每页显示的世界数量" => 5,
+                //开服时自动把worlds里已生成的世界全部加载好，不用再手动load一遍
+                "自动加载全部世界" => true,
             )
         );
         $this->worlds = new Config($this->getDataFolder() . "Worlds.yml", Config::YAML, []);
@@ -171,9 +180,15 @@ class Main extends PluginBase
                 "每页显示的商品数量" => 5,
                 //没手动配图标的物品商品，按物品名去猜材质路径。猜错只是没图标，不影响买卖
                 "自动推导商品图标" => true,
+                //营地专属物品市场的价格系数，乘在物品基准价上。
+                //购买系数必须大于出售系数，否则玩家可以反复买卖刷钱
+                "营地专属物品出售价格系数" => 0.8,
+                "营地专属物品购买价格系数" => 1.25,
             )
         );
         $this->shops = new Config($this->getDataFolder() . "Shops.yml", Config::YAML, []);
+        //营地专属物品市场的存货。服务器不产出这些物品，货全部来自玩家挂卖
+        $this->campMarket = new Config($this->getDataFolder() . "CampMarket.yml", Config::YAML, []);
         /*
         商品ID:
         -"类型"=>item或prefix
@@ -192,6 +207,8 @@ class Main extends PluginBase
             Shop::getInstance($this)->addPrefixShop("§d萌新", "§d萌新", 5000);
         }
 
+        $this->migrate();
+
         $this->gui = new GuiHandler($this);
         //注册事件监听器
         $this->getServer()->getPluginManager()->registerEvents(new MEBListener($this), $this);
@@ -208,18 +225,29 @@ class Main extends PluginBase
         $this->commandRegistry->register(new PrefixCommandHandler($this));
         $this->commandRegistry->register(new ShopCommandHandler($this));  //商店命令处理器
         //初始化worlds
+        $multiWorld = MultiWorld::getInstance($this);
+        //先按配置把世界都加载好，"是否已加载"才能写成真实状态
+        if ($multiWorld->hasAutoLoad()) {
+            $autoLoad = $multiWorld->loadAllWorlds();
+            if ($autoLoad["loaded"] > 0)
+                $this->getLogger()->info("§a已自动加载 " . $autoLoad["loaded"] . " 个世界");
+            if ($autoLoad["failed"] !== array())
+                $this->getLogger()->warning("§c以下世界加载失败，请检查存档是否完整: " . implode(", ", $autoLoad["failed"]));
+        }
         $worlds = $this->worlds->getAll();
-        foreach (MultiWorld::getInstance($this)->getAllWolrdName() as $worldName) {
-            $worlds[$worldName] = array(
-                //"传送条件"=>array("/command"),  //后台执行该指令来检测该玩家是否达到传送要求
-                //"等级"??
-                "描述" => null,
-                "是否已加载" => false
-            );
-            if ($worldName === MultiWorld::getInstance($this)->getDefaultWorld()->getFolderName()) {  //默认世界
-                $worlds[$worldName]["描述"] = "服务器默认世界";
-                $worlds[$worldName]["是否已加载"] = true;
-            }
+        $defaultWorldName = $multiWorld->getDefaultWorld()->getFolderName();
+        foreach ($multiWorld->getAllWolrdName() as $worldName) {
+            //只补新世界，已有条目保留原样:
+            //以前每次开服都整条覆盖，管理员填的"描述"一重启就没了
+            if (!isset($worlds[$worldName]) || !is_array($worlds[$worldName]))
+                $worlds[$worldName] = array(
+                    //"传送条件"=>array("/command"),  //后台执行该指令来检测该玩家是否达到传送要求
+                    //"等级"??
+                    "描述" => $worldName === $defaultWorldName ? "服务器默认世界" : null,
+                    "是否已加载" => false
+                );
+            //按真实加载状态回写，避免配置说已加载、实际没加载，玩家传送时才发现
+            $worlds[$worldName]["是否已加载"] = $multiWorld->isWorldLoaded($worldName);
         }
         $this->worlds->setAll($worlds);
         $this->worlds->save();
@@ -250,6 +278,57 @@ class Main extends PluginBase
                 Players::getInstance($this)->setAllPlayerTransferNum(Players::getInstance($this)->getTransferNum(false), false);
             }
         }), 20 * 60 * 60);
+    }
+
+    /**
+     * 老版本数据的迁移
+     *
+     * Config只会补齐缺失的顶层键，营地条目里新增的字段(等级/捐献池/福利箱)
+     * 和已经写进数据的"营长"它都管不着，所以要自己走一遍。
+     * 每次启动都跑，已经迁移过的服务器不会有副作用。
+     */
+    private function migrate(): void
+    {
+        //营长 -> 市长
+        $renamed = Campsite::getInstance($this)->migrateOwnerPost();
+        if ($renamed > 0)
+            $this->getLogger()->info("§a已把" . $renamed . "位营长的职位名迁移为市长。");
+
+        //给老营地补上等级/捐献池/福利箱三个字段
+        $campsites = $this->campsites->getAll();
+        $patched = 0;
+        foreach ($campsites as $CID => $campsite) {
+            if (!is_array($campsite))
+                continue;
+            $changed = false;
+            if (!isset($campsite["level"])) {
+                $campsite["level"] = 1;
+                $changed = true;
+            }
+            if (!is_array($campsite["donation"] ?? null)) {
+                $campsite["donation"] = array("money" => 0, "record" => array());
+                $changed = true;
+            }
+            if (!is_array($campsite["welfare"] ?? null)) {
+                $campsite["welfare"] = array("money" => 0, "items" => array(), "claimed" => array());
+                $changed = true;
+            }
+            if ($changed) {
+                $campsites[$CID] = $campsite;
+                $patched++;
+            }
+        }
+        if ($patched > 0) {
+            $this->campsites->setAll($campsites);
+            $this->campsites->save();
+            $this->getLogger()->info("§a已为" . $patched . "个营地补齐等级与捐献池数据。");
+        }
+
+        //版本号在配置里也更新一下，方便服主确认自己跑的是哪版
+        if ($this->basicConfig->get("version") !== "2.0.8") {
+            $this->basicConfig->set("version", "2.0.8");
+            $this->basicConfig->save();
+        }
     }
 
     public function onDisable(): void

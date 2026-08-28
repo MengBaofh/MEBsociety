@@ -9,6 +9,7 @@ use pocketmine\console\ConsoleCommandSender;
 use MengBao\MEBSociety\Tools\ArrayPage;
 use MengBao\MEBSociety\Units\Shop;
 use MengBao\MEBSociety\Units\Players;
+use MengBao\MEBSociety\Units\CampsiteItem;
 use MengBao\MEBSociety\MEBCommand\CommandHandler\CommandHandlerInterface;
 
 class ShopCommandHandler implements CommandHandlerInterface
@@ -62,6 +63,9 @@ class ShopCommandHandler implements CommandHandlerInterface
             case "opshop":
                 $this->opshop($sender);
                 break;
+            case "camp":
+                $this->camp($sender, $args);
+                break;
             default:
                 $sender->sendMessage($this->logo . "§c未知指令，输入/" . $c_name . " help来获取帮助!");
         }
@@ -76,6 +80,9 @@ class ShopCommandHandler implements CommandHandlerInterface
         $sender->sendMessage("§e> /" . $c_name . " info <shop_id> --- 查看商品详情");
         $sender->sendMessage("§e> /" . $c_name . " buy <shop_id> <times> --- 购买商品");
         $sender->sendMessage("§e> /" . $c_name . " sell <shop_id> <times> --- 出售商品");
+        $sender->sendMessage("§e> /" . $c_name . " camp [list] --- 查看营地专属物品市场");
+        $sender->sendMessage("§e> /" . $c_name . " camp sell <item_key> <num> --- 把营地专属物品挂卖到市场");
+        $sender->sendMessage("§e> /" . $c_name . " camp buy <item_key> <num> --- 从市场购买营地专属物品");
         if (Players::getInstance($this->plugin)->isMaster($senderName) || $sender instanceof ConsoleCommandSender) {
             $sender->sendMessage("§e> /" . $c_name . " opshop --- 开关op管理商店的权限");
         }
@@ -318,6 +325,82 @@ class ShopCommandHandler implements CommandHandlerInterface
             $this->logo . "§a成功设置商品" . Shop::getInstance($this->plugin)->getShopName($SID)
                 . "§a的图标为：" . trim($args[3])
         );
+    }
+
+    /**
+     * 营地专属物品市场
+     *
+     * 和常规商品分开成一个子指令，因为两者的交易模型不一样：
+     * 常规商品由服务器无限供货，专属物品的货全部来自其他玩家挂卖。
+     */
+    public function camp(CommandSender $sender, array $args): void
+    {
+        $shop = Shop::getInstance($this->plugin);
+        $item = CampsiteItem::getInstance($this->plugin);
+        $sub = $args[1] ?? "list";
+
+        if ($sub === "list") {
+            $sender->sendMessage("--------" . $this->logo . "营地专属物品市场--------");
+            $sender->sendMessage("§7货源全部来自玩家挂卖，服务器不产出。存货为0时买不到。");
+            foreach ($item->getAll() as $level => $define) {
+                $key = $define["key"];
+                $stock = $shop->getCampStock($key);
+                $sender->sendMessage(
+                    "§f" . $define["name"] . "§r §7(" . $key . ") §7解锁等级:" . $level
+                        . " §a买:" . $shop->getCampBuyPrice($key)
+                        . " §b卖:" . $shop->getCampSellPrice($key)
+                        . " §e存货:" . ($stock > 0 ? "§f" . $stock : "§c0")
+                );
+            }
+            return;
+        }
+
+        if ($sender instanceof ConsoleCommandSender) {
+            $sender->sendMessage($this->logo . "§c控制台禁止输入！");
+            return;
+        }
+        if (!in_array($sub, array("buy", "sell"))) {
+            $sender->sendMessage($this->logo . "§c用法：/" . $this->getCommandName() . " camp [list|buy|sell] <item_key> <num>");
+            return;
+        }
+        if (!isset($args[2])) {
+            $sender->sendMessage($this->logo . "§c未输入专属物品标识！可用 /" . $this->getCommandName() . " camp list 查看。");
+            return;
+        }
+        $key = (string) $args[2];
+        if ($item->getByKey($key) === null) {
+            $sender->sendMessage($this->logo . "§c未知的专属物品标识：" . $key);
+            return;
+        }
+        //数量不填按1算
+        $num = 1;
+        if (isset($args[3])) {
+            if (!is_numeric($args[3]) || (int) $args[3] <= 0) {
+                $sender->sendMessage($this->logo . "§c数量必须为正整数！");
+                return;
+            }
+            $num = (int) $args[3];
+        }
+
+        $senderName = strtolower($sender->getName());
+        if ($sub === "sell") {
+            $price = $shop->getCampSellPrice($key) * $num;
+            $result = $shop->campSell($senderName, $key, $num);
+            if ($result !== Shop::OK) {
+                $sender->sendMessage($this->logo . $shop->getResultMsg($result));
+                return;
+            }
+            $sender->sendMessage($this->logo . "§a成功挂卖" . $item->getName($key) . "§a×" . $num . "，获得游戏币：" . $price);
+            return;
+        }
+
+        $price = $shop->getCampBuyPrice($key) * $num;
+        $result = $shop->campBuy($senderName, $key, $num);
+        if ($result !== Shop::OK) {
+            $sender->sendMessage($this->logo . $shop->getResultMsg($result));
+            return;
+        }
+        $sender->sendMessage($this->logo . "§a成功购买" . $item->getName($key) . "§a×" . $num . "，花费游戏币：" . $price);
     }
 
     public function opshop(CommandSender $sender): void

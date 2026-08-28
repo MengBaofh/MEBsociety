@@ -6,6 +6,18 @@ use pocketmine\plugin\PluginBase;
 
 class Campsite  //打包好的方法
 {
+    /**
+     * 营地所有者的职位名
+     *
+     * 2.0.8起从"营长"改叫"市长"。老数据里存的还是"营长"，
+     * 所以判断的地方要同时认这两个名字(见isOwner)，
+     * 而Main那边会在启动时做一次迁移，把存量数据统一改过来。
+     */
+    public const POST_OWNER = "市长";
+
+    /** 2.0.7及更早版本的所有者职位名，仅用于兼容判断和迁移 */
+    public const POST_OWNER_LEGACY = "营长";
+
     private static $instance;
     private $plugin;
 
@@ -121,11 +133,38 @@ class Campsite  //打包好的方法
     }
 
     /**
-     * 判断玩家是否为营地营长
+     * 判断玩家是否为营地市长
+     *
+     * 老数据里的职位名可能还是"营长"，两个都要认，
+     * 否则升级插件之后所有现存市长会瞬间失去身份。
      */
     public function isOwner(string $playerName): bool
     {
-        return $this->getCPost($playerName) === "营长";
+        $post = $this->getCPost($playerName);
+        return $post === self::POST_OWNER || $post === self::POST_OWNER_LEGACY;
+    }
+
+    /**
+     * 把存量数据里的"营长"统一改成"市长"，返回改了多少条
+     *
+     * 只改职位名，不动其他字段。插件启动时跑一次，
+     * 已经迁移过的服务器再跑也不会有副作用(找不到"营长"就什么都不做)。
+     */
+    public function migrateOwnerPost(): int
+    {
+        $playerConfig = $this->plugin->playerConfig->getAll();
+        $changed = 0;
+        foreach ($playerConfig as $playerName => $playerArray) {
+            if (!is_array($playerArray) || ($playerArray["营地职位名"] ?? null) !== self::POST_OWNER_LEGACY)
+                continue;
+            $playerConfig[$playerName]["营地职位名"] = self::POST_OWNER;
+            $changed++;
+        }
+        if ($changed > 0) {
+            $this->plugin->playerConfig->setAll($playerConfig);
+            $this->plugin->playerConfig->save();
+        }
+        return $changed;
     }
 
     /**
@@ -233,13 +272,23 @@ class Campsite  //打包好的方法
             "member" => [$ownerName],  //营地成员名
             "id" => $CID,
             "application" => array(),  //入营申请人名单
+            "level" => 1,  //营地等级，决定解锁哪些营地专属物品
+            "donation" => array(  //捐献池，营地升级和圈领地的费用从这里出
+                "money" => 0,
+                "record" => array(),  //每个人的累计捐献额，谁出了多少大家都能查
+            ),
+            "welfare" => array(  //福利箱，市长设置内容，成员每周领一次
+                "money" => 0,
+                "items" => array(),  //专属物品标识 => 每人每周可领数量
+                "claimed" => array(),  //玩家名 => 上次领取的周标识
+            ),
         );
         $this->plugin->campsites->setAll($campsites);
         $this->plugin->campsites->save();
         //更新playerConfig配置文件对应信息
         $this->changePower($ownerName, [true, true, true, true, true]);
         $this->changePlayerCID($ownerName, $CID);
-        $this->changePost($ownerName, "营长");
+        $this->changePost($ownerName, self::POST_OWNER);
         //更新营地名和营地ID映射
         $this->setNameId();
     }
@@ -312,8 +361,8 @@ class Campsite  //打包好的方法
     }
 
     /**
-     * 营长转让
-     * 前提：是否有营地/是否营长(所有权力)/是否同一个营地
+     * 市长转让
+     * 前提：是否有营地/是否市长(所有权力)/是否同一个营地
      */
     public function changeOwner(int $CID, string $oldOwner, string $newOwner): void
     {
@@ -321,7 +370,7 @@ class Campsite  //打包好的方法
         $campsites[$CID]["owner"] = $newOwner;
         $this->plugin->campsites->setAll($campsites);
         $this->plugin->campsites->save();
-        $this->changePost($newOwner, "营长");
+        $this->changePost($newOwner, self::POST_OWNER);
         $this->changePower($newOwner, [true, true, true, true, true]);
         $this->changePlayerCID($newOwner, $CID);
         $this->changePost($oldOwner, null);
@@ -359,7 +408,7 @@ class Campsite  //打包好的方法
     }
 
     /**
-     * 获取营长名
+     * 获取市长名
      * 前提：CID是否存在
      */
     public function getOwner(int $CID): string
