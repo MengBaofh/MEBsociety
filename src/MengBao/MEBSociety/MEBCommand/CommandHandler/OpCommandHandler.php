@@ -5,6 +5,8 @@ namespace MengBao\MEBSociety\MEBCommand\CommandHandler;
 use pocketmine\plugin\PluginBase;
 use pocketmine\command\CommandSender;
 use pocketmine\console\ConsoleCommandSender;
+use pocketmine\player\GameMode;
+use pocketmine\player\Player;
 
 use MengBao\MEBSociety\Tools\ArrayPage;
 use MengBao\MEBSociety\Units\Players;
@@ -54,6 +56,9 @@ class OpCommandHandler implements CommandHandlerInterface
             case "unlicmd":
                 $this->unlicmd($sender, $args);
                 break;
+            case "gm":
+                $this->gm($sender);
+                break;
             default:
                 $sender->sendMessage($this->logo . "§c未知指令，输入/" . $c_name . " help来获取帮助!");
         }
@@ -69,6 +74,21 @@ class OpCommandHandler implements CommandHandlerInterface
         $sender->sendMessage("§e> /" . $c_name . " list [page] --- 查看所有op");
         $sender->sendMessage("§e> /" . $c_name . " licmd <command_name> --- 禁用一条指令(command_name不加'/')");
         $sender->sendMessage("§e> /" . $c_name . " unlicmd <command_name> --- 取消禁用一条指令");
+        $sender->sendMessage("§e> /" . $c_name . " gm --- 一键切换自己的生存/创造模式");
+    }
+
+    /**
+     * 一键切换生存/创造模式
+     */
+    public function gm(CommandSender $sender): void
+    {
+        if (!$sender instanceof Player) {
+            $sender->sendMessage($this->logo . "§c该指令只能由玩家在游戏内使用！");
+            return;
+        }
+        $toCreative = $sender->getGamemode() !== GameMode::CREATIVE;
+        $sender->setGamemode($toCreative ? GameMode::CREATIVE : GameMode::SURVIVAL);
+        $sender->sendMessage($this->logo . "§a已切换为" . ($toCreative ? "创造" : "生存") . "模式！");
     }
 
     public function master(CommandSender $sender, array $args): void
@@ -149,13 +169,23 @@ class OpCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c玩家" . $args[1] . "还不是OP！");
             return;
         }
+        // 检查是否是最高权限，如果是则同时清除最高权限配置
+        $isMaster = Players::getInstance($this->plugin)->isMaster($args[1]);
+
         $player = $this->plugin->getServer()->getPlayerExact($args[1]);
         if ($player !== null) {
             $this->plugin->getServer()->removeOp($args[1]);
             $player->sendMessage($this->logo . "§c你被剥夺OP权限！");
         }
         Players::getInstance($this->plugin)->removeOp($args[1]);
-        $sender->sendMessage($this->logo . "§a成功剥夺" . $args[1] . "的OP权限。");
+
+        // 如果目标是最高权限，清除最高权限配置
+        if ($isMaster) {
+            Players::getInstance($this->plugin)->setMaster(null);
+            $sender->sendMessage($this->logo . "§a成功剥夺" . $args[1] . "的OP权限及最高权限。");
+        } else {
+            $sender->sendMessage($this->logo . "§a成功剥夺" . $args[1] . "的OP权限。");
+        }
     }
 
     public function list(CommandSender $sender, array $args): void

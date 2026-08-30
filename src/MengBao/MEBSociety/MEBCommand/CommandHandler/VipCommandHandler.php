@@ -234,6 +234,9 @@ class VipCommandHandler implements CommandHandlerInterface
         $sender->sendMessage($this->logo . "§a成功签到，获得" . $money . "个游戏币！");
     }
 
+    /**
+     * 切换飞行模式
+     */
     public function fly(CommandSender $sender): void
     {
         $senderName = strtolower($sender->getName());
@@ -241,8 +244,12 @@ class VipCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c你没有权限输入该指令！");
             return;
         }
-        $sender->setAllowFlight(!$sender->getAllowFlight());
-        $sender->sendMessage($this->logo . "§a切换模式成功！");
+        $allow = !$sender->getAllowFlight();
+        $sender->setAllowFlight($allow);
+        //关闭时要先落地，否则玩家会被锁在飞行状态
+        if (!$allow)
+            $sender->setFlying(false);
+        $sender->sendMessage($this->logo . ($allow ? "§a已开启飞行模式！" : "§e已关闭飞行模式！"));
     }
 
     public function color(CommandSender $sender, array $args): void

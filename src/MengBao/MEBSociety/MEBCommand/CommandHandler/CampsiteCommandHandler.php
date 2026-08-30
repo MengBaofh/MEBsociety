@@ -42,10 +42,9 @@ class CampsiteCommandHandler implements CommandHandlerInterface
                 $this->create($sender, $args);
                 break;
             case "sethome":
-                $this->setHome($sender);
-                break;
             case "gohome":
-                $this->goHome($sender);
+                //2.0.9起营地传送点由MEBTerritory的营地领地传送承担
+                $sender->sendMessage($this->logo . "§c营地传送点已移除，请使用营地领地的传送功能(/ter gui)！");
                 break;
             case "transfer":
                 $this->transfer($sender, $args);
@@ -108,8 +107,6 @@ class CampsiteCommandHandler implements CommandHandlerInterface
         $c_name = $this->getCommandName();
         $sender->sendMessage("---------" . $this->logo . "营地指令帮助---------");
         $sender->sendMessage("§e> /" . $c_name . " create <campsite_name> --- 创建营地");
-        $sender->sendMessage("§e> /" . $c_name . " sethome --- 设置营地入口传送点");
-        $sender->sendMessage("§e> /" . $c_name . " gohome --- 传送到营地入口");
         $sender->sendMessage("§e> /" . $c_name . " transfer <player_name> --- 将营地转让给某人");
         $sender->sendMessage("§e> /" . $c_name . " call --- 召集营地所有成员");
         $sender->sendMessage("§e> /" . $c_name . " disband --- 解散营地");
@@ -277,7 +274,9 @@ class CampsiteCommandHandler implements CommandHandlerInterface
         //不带子参数是查看，全体成员都能看
         if (!isset($args[1])) {
             $sender->sendMessage("--------" . $this->logo . "营地福利箱--------");
-            $sender->sendMessage("§e附带游戏币：§f" . $level->getWelfareMoney($CID));
+            $sender->sendMessage("§e附带游戏币：§f" . $level->getWelfareMoney($CID)
+                . " §7(上限" . $level->getWelfareMoneyLimit() . "，从捐献池扣)");
+            $sender->sendMessage("§e营地捐献池：§f" . $level->getPoolMoney($CID));
             $welfare = $level->getWelfare($CID);
             if ($welfare === array())
                 $sender->sendMessage("§7福利箱里还没有物品。");
@@ -301,9 +300,14 @@ class CampsiteCommandHandler implements CommandHandlerInterface
                 $sender->sendMessage($this->logo . "§c请输入非负的游戏币数量！");
                 return;
             }
+            $limit = $level->getWelfareMoneyLimit();
+            if ((float) $args[2] > $limit) {
+                $sender->sendMessage($this->logo . "§c福利箱游戏币不能超过" . $limit . "！");
+                return;
+            }
             $result = $level->setWelfareMoney($CID, (float) $args[2]);
             $sender->sendMessage($this->logo . ($result === CampsiteLevel::OK
-                ? "§a成功把福利箱的游戏币设为" . (float) $args[2] . "！"
+                ? "§a成功把福利箱的游戏币设为" . (float) $args[2] . "§a，这笔钱从营地捐献池扣！"
                 : $level->getResultMsg($result)));
             return;
         }
@@ -347,11 +351,13 @@ class CampsiteCommandHandler implements CommandHandlerInterface
         $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
         $level = CampsiteLevel::getInstance($this->plugin);
         $result = $level->claimWelfare($senderName, $CID);
-        if ($result !== CampsiteLevel::OK) {
+        if ($result !== CampsiteLevel::OK && $result !== CampsiteLevel::OK_NO_POOL_MONEY) {
             $sender->sendMessage($this->logo . $level->getResultMsg($result));
             return;
         }
         $sender->sendMessage($this->logo . "§a成功领取本周的营地福利箱！");
+        if ($result === CampsiteLevel::OK_NO_POOL_MONEY)
+            $sender->sendMessage($this->logo . "§e营地捐献池不足，本次没有发放附带的游戏币。");
     }
 
     public function create(CommandSender $sender, array $args): void
@@ -391,58 +397,6 @@ class CampsiteCommandHandler implements CommandHandlerInterface
         Economy::getInstance($this->plugin)->addMoney($senderName, -$moneyCreateCampsite);  //扣钱
         $sender->sendMessage($this->logo . "§a成功创建" . $args[1] . "营地，花费" . $moneyCreateCampsite . "！");
         $this->plugin->getServer()->broadcastMessage($this->logo . "§b玩家" . $senderName . "§a创建了" . $args[1] . "§a营地，§e输入 /campsite join " . Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName) . " §e即可申请加入！");
-    }
-
-    public function setHome(CommandSender $sender): void
-    {
-        $senderName = strtolower($sender->getName());
-        if ($sender instanceof ConsoleCommandSender) {
-            $sender->sendMessage($this->logo . "§c控制台禁止输入！");
-            return;
-        }
-        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($senderName)) {
-            $sender->sendMessage($this->logo . "§c你还没有加入营地！");
-            return;
-        }
-        $ownedPower = Campsite::getInstance($this->plugin)->getCPower($senderName);
-        if (!$ownedPower["所有权力"] && !$ownedPower["设置营地传送点"]) {
-            $sender->sendMessage($this->logo . "§c你没有权限使用这个命令！");
-            return;
-        }
-        $worldName = $sender->getWorld()->getFolderName();
-        $x = (int) $sender->getPosition()->getX();
-        $y = (int) $sender->getPosition()->getY();
-        $z = (int) $sender->getPosition()->getZ();
-        Campsite::getInstance($this->plugin)->setHome($senderName, $worldName, $x, $y, $z);
-        $sender->sendMessage($this->logo . "§a成功设置当前坐标(x:" . $x . " y:" . $y . " z:" . $z . " world:" . $worldName . ")为营地传送点！");
-    }
-
-    public function goHome(CommandSender $sender): void
-    {
-        $senderName = strtolower($sender->getName());
-        if ($sender instanceof ConsoleCommandSender) {
-            $sender->sendMessage($this->logo . "§c控制台禁止输入！");
-            return;
-        }
-        if (!Campsite::getInstance($this->plugin)->isJoinCampsite($senderName)) {
-            $sender->sendMessage($this->logo . "§c你还没有加入营地！");
-            return;
-        }
-        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName);
-        $home = Campsite::getInstance($this->plugin)->getHome($CID);
-        $worldName = $home["world"];
-        $x = $home["x"];
-        $y = $home["y"];
-        $z = $home["z"];
-        if ($worldName === null || $x === null || $y === null || $z === null) {
-            $sender->sendMessage("§c营地未设置传送点！");
-            return;
-        }
-        $result = MultiWorld::getInstance($this->plugin)->transportPlayer($sender, $worldName, $x, $y, $z);
-        if ($result === 1)
-            $sender->sendMessage($this->logo . "§e成功传送！");
-        else
-            $sender->sendMessage($this->logo . "§c世界未加载，传送失败！");
     }
 
     public function transfer(CommandSender $sender, array $args): void
@@ -651,7 +605,7 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c需要先转让市长身份再退出营地！");
         else {
             Campsite::getInstance($this->plugin)->changePost($senderName, null);
-            Campsite::getInstance($this->plugin)->changePower($senderName, [false, false, false, false, false]);
+            Campsite::getInstance($this->plugin)->changePower($senderName, [false, false, false, false]);
             Campsite::getInstance($this->plugin)->changePlayerCID($senderName, null);
             Campsite::getInstance($this->plugin)->changeMember($CID, $senderName, false);
             $sender->sendMessage($this->logo . "§c成功退出营地！");
@@ -856,8 +810,9 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c未输入权力ID！");
             return;
         }
-        if (!is_numeric($args[3]) || $args[3] < 0 || $args[3] > 4) {
-            $sender->sendMessage($this->logo . "§c权力ID输入有误！");
+        $powerId = Campsite::getInstance($this->plugin)->getPowerId();
+        if (!is_numeric($args[3]) || !isset($powerId[(int) $args[3]])) {
+            $sender->sendMessage($this->logo . "§c权力ID输入有误！可用: 0-" . (count($powerId) - 1));
             return;
         }
         if (!array_key_exists($args[2], $this->plugin->playerConfig->getAll())) {
@@ -868,30 +823,12 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             $sender->sendMessage($this->logo . "§c玩家" . $args[2] . "与你不在一个营地！");
             return;
         }
+        //按权力表反查下标，权力表增删时这里不用跟着改
         $ownedPower = Campsite::getInstance($this->plugin)->getCPower($args[2]);
-        $arrays = [false, false, false, false, false];
-        foreach ($ownedPower as $powerName => $powerTemp) {
-            $index = 0;
-            switch ($powerName) {
-                case "所有权力":
-                    $index = 0;
-                    break;
-                case "设置营地传送点":
-                    $index = 1;
-                    break;
-                case "召集营地成员":
-                    $index = 2;
-                    break;
-                case "审核入营申请":
-                    $index = 3;
-                    break;
-                case "踢人":
-                    $index = 4;
-                    break;
-            }
-            $arrays[$index] = $powerTemp;
-        }
-        $arrays[$args[3]] = ($args[1] === "add" || $args[1] === "0") ? true : false;
+        $arrays = array_fill(0, count($powerId), false);
+        foreach ($powerId as $index => $powerName)
+            $arrays[$index] = (bool) ($ownedPower[$powerName] ?? false);
+        $arrays[(int) $args[3]] = ($args[1] === "add" || $args[1] === "0") ? true : false;
         Campsite::getInstance($this->plugin)->changePower($args[2], $arrays);
         $type = ($args[1] === "add" || $args[1] === "0") ? "给予" : "§c移除";
         $sender->sendMessage($this->logo . "§a成功" . $type . "§a玩家" . $args[2] ."的§c". Campsite::getInstance($this->plugin)->getPowerNameByID($args[3]) . "§a的权力。");
@@ -969,7 +906,7 @@ class CampsiteCommandHandler implements CommandHandlerInterface
             return;
         }
         Campsite::getInstance($this->plugin)->changePost($args[1], null);
-        Campsite::getInstance($this->plugin)->changePower($args[1], [false, false, false, false, false]);
+        Campsite::getInstance($this->plugin)->changePower($args[1], [false, false, false, false]);
         Campsite::getInstance($this->plugin)->changePlayerCID($args[1], null);
         Campsite::getInstance($this->plugin)->changeMember(Campsite::getInstance($this->plugin)->getCIDbyPlayerName($senderName), $args[1], false);
         $sender->sendMessage($this->logo . "§a成功踢出" . $args[1]);

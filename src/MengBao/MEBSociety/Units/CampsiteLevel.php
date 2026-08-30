@@ -33,6 +33,7 @@ class CampsiteLevel
     public const ERR_ITEM_UNKNOWN = -11;  //专属物品标识不存在
     public const ERR_ITEM_LOCKED = -12;  //该专属物品还没解锁
     public const ERR_ITEM_NOT_ENOUGH = -13;  //背包里的专属物品不够
+    public const OK_NO_POOL_MONEY = 2;  //物品发了，但捐献池不够，没发游戏币
 
     private static $instance;
     private $plugin;
@@ -276,7 +277,15 @@ class CampsiteLevel
     }
 
     /**
-     * 设置福利箱附带的游戏币
+     * 福利箱附带游戏币的上限，0表示不允许附带游戏币
+     */
+    public function getWelfareMoneyLimit(): float
+    {
+        return max(0.0, (float) $this->plugin->campsiteConfig->get("福利箱游戏币上限"));
+    }
+
+    /**
+     * 设置福利箱附带的游戏币，超过上限则返回ERR_AMOUNT
      * 前提：调用方已确认操作者是市长
      */
     public function setWelfareMoney(int $CID, float $money): int
@@ -284,6 +293,8 @@ class CampsiteLevel
         if (!is_array($this->plugin->campsites->get($CID)))
             return self::ERR_NOT_FOUND;
         if ($money < 0)
+            return self::ERR_AMOUNT;
+        if ($money > $this->getWelfareMoneyLimit())
             return self::ERR_AMOUNT;
         $campsites = $this->plugin->campsites->getAll();
         $campsites[$CID]["welfare"]["money"] = $money;
@@ -331,6 +342,9 @@ class CampsiteLevel
      *
      * 领取记录按周标识存，不需要定时任务去清：
      * 到了下一周，存着的旧周标识自然就和当前周不相等了。
+     *
+     * 附带的游戏币从营地捐献池扣，不是凭空发放。池子不够时
+     * 只发物品并返回OK_NO_POOL_MONEY，让调用方提示一声。
      */
     public function claimWelfare(string $playerName, int $CID): int
     {
@@ -341,12 +355,16 @@ class CampsiteLevel
         if ($this->hasClaimed($CID, $playerName))
             return self::ERR_CLAIMED;
         $items = $this->getWelfare($CID);
-        $money = $this->getWelfareMoney($CID);
+        //上限可能被服主调小过，存量数据里的旧值要按新上限截断
+        $money = min($this->getWelfareMoney($CID), $this->getWelfareMoneyLimit());
         if ($items === array() && $money <= 0)
             return self::ERR_WELFARE_EMPTY;
         $player = $this->plugin->getServer()->getPlayerExact($playerName);
         if ($player === null)
             return self::ERR_NOT_MEMBER;
+
+        //捐献池不够就只发物品，不足的部分不补
+        $paidMoney = $money > 0 && $this->getPoolMoney($CID) >= $money ? $money : 0.0;
 
         //先把要发的物品都造出来，确认背包全放得下再真的发，
         //否则会出现领取记录写了、东西只发了一半
@@ -359,17 +377,19 @@ class CampsiteLevel
             if ($item !== null)
                 $give[] = $item;
         }
-        if ($give === array() && $money <= 0)
-            return self::ERR_WELFARE_EMPTY;
+        if ($give === array() && $paidMoney <= 0)
+            return $money > 0 ? self::ERR_POOL_NOT_ENOUGH : self::ERR_WELFARE_EMPTY;
         if (!$this->canAddAll($player, $give))
             return self::ERR_INVENTORY_FULL;
 
         foreach ($give as $item)
             $player->getInventory()->addItem($item);
-        if ($money > 0)
-            Economy::getInstance($this->plugin)->addMoney($playerName, $money);
+        if ($paidMoney > 0) {
+            $this->addPoolMoney($CID, -$paidMoney);
+            Economy::getInstance($this->plugin)->addMoney($playerName, $paidMoney);
+        }
         $this->markClaimed($CID, $playerName);
-        return self::OK;
+        return $money > 0 && $paidMoney <= 0 ? self::OK_NO_POOL_MONEY : self::OK;
     }
 
     /**
@@ -440,7 +460,7 @@ class CampsiteLevel
             case self::ERR_MAX_LEVEL:
                 return "§c营地已达到最高等级！";
             case self::ERR_POOL_NOT_ENOUGH:
-                return "§c捐献池的游戏币不足，无法升级！";
+                return "§c营地捐献池的游戏币不足！";
             case self::ERR_NO_POWER:
                 return "§c只有市长可以执行这个操作！";
             case self::ERR_NO_MONEY:

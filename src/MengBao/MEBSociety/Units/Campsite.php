@@ -21,13 +21,21 @@ class Campsite  //打包好的方法
     private static $instance;
     private $plugin;
 
+    /**
+     * 营地权力表
+     *
+     * 2.0.9起去掉了"设置营地传送点"，营地传送改由MEBTerritory的营地领地传送承担，
+     * 权力ID随之重排。存量数据里多出来的旧权力键由Main::migrate清掉。
+     */
     public $powerId = array(
         0 => "所有权力",
-        1 => "设置营地传送点",
-        2 => "召集营地成员",
-        3 => "审核入营申请",
-        4 => "踢人"
+        1 => "召集营地成员",
+        2 => "审核入营申请",
+        3 => "踢人"
     );
+
+    /** 2.0.9及更早版本的权力名，仅用于迁移 */
+    public const POWER_LEGACY_SETHOME = "设置营地传送点";
 
     public $nameId = [];  //营地名与营地ID映射表
 
@@ -218,18 +226,21 @@ class Campsite  //打包好的方法
     /**
      * 修改玩家营地权力, values=[
      *  0 => "所有权力",
-     *  1 => "设置营地传送点",
-     *  2 => "召集营地成员",
-     *  3 => "审核入营申请",
-     *  4 => "踢人"
+     *  1 => "召集营地成员",
+     *  2 => "审核入营申请",
+     *  3 => "踢人"
      * ]
      * 前提：玩家是否存在
      */
     public function changePower(string $playerName, array $values): void
     {
         $playerConfig = $this->plugin->playerConfig->getAll();
-        foreach ($values as $index => $value)
+        foreach ($values as $index => $value) {
+            //权力表变短过，多出来的下标直接忽略
+            if (!isset($this->powerId[$index]))
+                continue;
             $playerConfig[$playerName]["营地权力"][$this->getPowerNameByID($index)] = $value;
+        }
         $this->plugin->playerConfig->setAll($playerConfig);
         $this->plugin->playerConfig->save();
     }
@@ -262,12 +273,6 @@ class Campsite  //打包好的方法
         $campsites[$CID] = array(
             "name" => $campsiteName,  //营地名
             "owner" => $ownerName,
-            "home" => array(
-                "world" => null,
-                "x" => null,
-                "y" => null,
-                "z" => null
-            ),  //营地入口传送点
             "call" => $callNum,  //营地每日召集次数
             "member" => [$ownerName],  //营地成员名
             "id" => $CID,
@@ -286,7 +291,7 @@ class Campsite  //打包好的方法
         $this->plugin->campsites->setAll($campsites);
         $this->plugin->campsites->save();
         //更新playerConfig配置文件对应信息
-        $this->changePower($ownerName, [true, true, true, true, true]);
+        $this->changePower($ownerName, [true, true, true, true]);
         $this->changePlayerCID($ownerName, $CID);
         $this->changePost($ownerName, self::POST_OWNER);
         //更新营地名和营地ID映射
@@ -303,7 +308,7 @@ class Campsite  //打包好的方法
         $member = $this->getAllMember($CID);
         foreach ($member as $key => $name) {
             $this->changePost($name, null);
-            $this->changePower($name, [false, false, false, false, false]);
+            $this->changePower($name, [false, false, false, false]);
             $this->changePlayerCID($name, null);
         }
         //campsites文件中删除营地信息
@@ -313,37 +318,6 @@ class Campsite  //打包好的方法
         $this->plugin->campsites->save();
         //更新营地名和营地ID映射
         $this->setNameId();
-    }
-
-    /**
-     * 设置营地传送点
-     * 前提：是否有营地/是否有权限
-     */
-    public function setHome(string $playerName, string $worldName, int $x, int $y, int $z): void
-    {
-        $campsites = $this->plugin->campsites->getAll();
-        $CID = Campsite::getInstance($this->plugin)->getCIDbyPlayerName($playerName);
-        $campsites[$CID]["home"]["world"] = $worldName;
-        $campsites[$CID]["home"]["x"] = $x;
-        $campsites[$CID]["home"]["y"] = $y;
-        $campsites[$CID]["home"]["z"] = $z;
-        $this->plugin->campsites->setAll($campsites);
-        $this->plugin->campsites->save();
-    }
-
-    /**
-     * 通过营地ID获取营地传送点
-     * 前提：是否设置传送点
-     */
-    public function getHome(int $CID): array
-    {
-        $campsites = $this->plugin->campsites->getAll();
-        return array(
-            "world" => $campsites[$CID]["home"]["world"],
-            "x" => $campsites[$CID]["home"]["x"],
-            "y" => $campsites[$CID]["home"]["y"],
-            "z" => $campsites[$CID]["home"]["z"]
-        );
     }
 
     /**
@@ -371,10 +345,10 @@ class Campsite  //打包好的方法
         $this->plugin->campsites->setAll($campsites);
         $this->plugin->campsites->save();
         $this->changePost($newOwner, self::POST_OWNER);
-        $this->changePower($newOwner, [true, true, true, true, true]);
+        $this->changePower($newOwner, [true, true, true, true]);
         $this->changePlayerCID($newOwner, $CID);
         $this->changePost($oldOwner, null);
-        $this->changePower($oldOwner, [false, false, false, false, false]);
+        $this->changePower($oldOwner, [false, false, false, false]);
     }
 
     /**

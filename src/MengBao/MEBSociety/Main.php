@@ -59,12 +59,6 @@ class Main extends PluginBase
 
     public function onLoad(): void
     {
-        $this->getLogger()->info("§c--------------------");
-        $this->getLogger()->info("§aMEBSociety插件加载中...");
-        $this->getLogger()->info("§a作者:梦宝(fanghao)");
-        $this->getLogger()->info("§a联系方式:825585398@qq.com");
-        $this->getLogger()->info("§aQQ群:495262926");
-        $this->getLogger()->info("§c--------------------");
     }
 
     public function onEnable(): void
@@ -79,7 +73,7 @@ class Main extends PluginBase
             $this->getDataFolder() . "BasicConfig.yml",
             Config::YAML,
             array(
-                "version" => "2.0.8",
+                "version" => "2.0.9",
                 "update" => 0,
                 "禁止使用的指令" => ["/op", "/deop"],
                 "最高权限" => null,
@@ -102,6 +96,9 @@ class Main extends PluginBase
                 "营地升级费用基数" => 50000,
                 //福利箱里每种专属物品每人每周最多领多少个
                 "福利箱每种物品数量上限" => 8,
+                //福利箱附带游戏币的上限，0表示不允许附带。
+                //这笔钱从营地捐献池扣，池子不够时只发物品
+                "福利箱游戏币上限" => 1000,
             )
         );
         $this->campsites = new Config($this->getDataFolder() . "Campsites.yml", Config::YAML, []);
@@ -158,9 +155,10 @@ class Main extends PluginBase
             $this->getDataFolder() . "MsgConfig.yml",
             Config::YAML,
             array(
-                "聊天格式" => "§6[{rand}§6]§r[{campsite}:{CID}§r]§c[{prefix}§c]§a[§f{cohabitant}§a]§7◆{name}§5>>> {color}",
-                "底部格式" => "§f|§e在线人数:{online} §d游戏币:{money} §e手持物品:{item} §2数量:{num} \n§f|§c权限:{rand} §b当前时间:{time}  §6当前地图:{world}\n§f|§e营地名:{campsite} §d营地id:{CID} §d同居:{cohabitant}",
-                "底部刷新时间间隔(s)" => 5,
+                "聊天格式" => "§8[§6{rand}§8] §8[§b{campsite}§7:§3{CID}§8] §8[{prefix}§8] §8[§d{cohabitant}§8] §f{name} §8» {color}",
+                "底部格式" => "§8┃ §6在线§8: §e{online} §8┃ §6金币§8: §e{money} §8┃ §6手持§8: §e{item} §7x§e{num}\n§8┃ §6权限§8: §b{rand} §8┃ §6时间§8: §b{time} §8┃ §6世界§8: §b{world}\n§8┃ §6营地§8: §d{campsite}§8[§5{CID}§8] §8┃ §6同居§8: §d{cohabitant}",
+                //间隔太短会把领地进出提示等其他插件的底部消息迅速刷掉
+                "底部刷新时间间隔(s)" => 15,
             )
         );
         $this->prefixConfig = new Config(
@@ -252,9 +250,10 @@ class Main extends PluginBase
         $this->worlds->setAll($worlds);
         $this->worlds->save();
         //创建计时器
+        $tipInterval = max(1, (int) $this->msgConfig->get("底部刷新时间间隔(s)"));
         $this->getScheduler()->scheduleRepeatingTask(new CallbackTask(function (): void {  //底部信息
             $this->sendTip();
-        }), 20 * $this->msgConfig->get("底部刷新时间间隔(s)"));
+        }), 20 * $tipInterval);
         $this->getScheduler()->scheduleRepeatingTask(new CallbackTask(function (): void {  // 小时刷新计时器，以服务器开启的天数计算
             //0点刷新检测
             $currentTime = time();  //当前时间
@@ -294,7 +293,24 @@ class Main extends PluginBase
         if ($renamed > 0)
             $this->getLogger()->info("§a已把" . $renamed . "位营长的职位名迁移为市长。");
 
-        //给老营地补上等级/捐献池/福利箱三个字段
+        //清掉2.0.9移除的"设置营地传送点"权力
+        $playerConfig = $this->playerConfig->getAll();
+        $powerCleaned = 0;
+        foreach ($playerConfig as $playerName => $playerArray) {
+            if (!is_array($playerArray) || !is_array($playerArray["营地权力"] ?? null))
+                continue;
+            if (!array_key_exists(Campsite::POWER_LEGACY_SETHOME, $playerArray["营地权力"]))
+                continue;
+            unset($playerConfig[$playerName]["营地权力"][Campsite::POWER_LEGACY_SETHOME]);
+            $powerCleaned++;
+        }
+        if ($powerCleaned > 0) {
+            $this->playerConfig->setAll($playerConfig);
+            $this->playerConfig->save();
+            $this->getLogger()->info("§a已清理" . $powerCleaned . "位玩家的营地传送点权力(该权力已移除)。");
+        }
+
+        //给老营地补上等级/捐献池/福利箱三个字段，并清掉已移除的营地传送点
         $campsites = $this->campsites->getAll();
         $patched = 0;
         foreach ($campsites as $CID => $campsite) {
@@ -313,6 +329,16 @@ class Main extends PluginBase
                 $campsite["welfare"] = array("money" => 0, "items" => array(), "claimed" => array());
                 $changed = true;
             }
+            if (array_key_exists("home", $campsite)) {
+                unset($campsite["home"]);
+                $changed = true;
+            }
+            //福利箱游戏币可能超过新加的上限，按上限截断
+            $limit = max(0.0, (float) $this->campsiteConfig->get("福利箱游戏币上限"));
+            if (is_array($campsite["welfare"] ?? null) && (float) ($campsite["welfare"]["money"] ?? 0) > $limit) {
+                $campsite["welfare"]["money"] = $limit;
+                $changed = true;
+            }
             if ($changed) {
                 $campsites[$CID] = $campsite;
                 $patched++;
@@ -325,8 +351,8 @@ class Main extends PluginBase
         }
 
         //版本号在配置里也更新一下，方便服主确认自己跑的是哪版
-        if ($this->basicConfig->get("version") !== "2.0.8") {
-            $this->basicConfig->set("version", "2.0.8");
+        if ($this->basicConfig->get("version") !== "2.0.9") {
+            $this->basicConfig->set("version", "2.0.9");
             $this->basicConfig->save();
         }
     }
@@ -340,16 +366,23 @@ class Main extends PluginBase
     public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool
     {
         if ($command->getName() === "mebhelp") {
+            // 如果是玩家，尝试打开 GUI 帮助界面
+            if ($sender instanceof Player) {
+                $this->gui->openHelp($sender);
+                return true;
+            }
+            // 控制台或非玩家显示文本帮助
             $sender->sendMessage("§c---§b" . $this->logo . "指令帮助§c---");
-            $sender->sendMessage("§e/money--游戏币指令");
-            $sender->sendMessage("§e/campsite--营地指令");
-            $sender->sendMessage("§e/cohabitant--同居指令");
-            $sender->sendMessage("§e/mebpre--称号指令");
-            $sender->sendMessage("§e/mebshop--商店指令");
-            $sender->sendMessage("§e/mw--多世界指令");
-            $sender->sendMessage("§e/mebop--管理op指令");
-            $sender->sendMessage("§e/mebvip--vip指令");
-            $sender->sendMessage("§e/mebsvip--svip指令");
+            $sender->sendMessage("§e/money help §7- 游戏币系统指令");
+            $sender->sendMessage("§e/campsite help §7- 营地系统指令");
+            $sender->sendMessage("§e/cohabitant help §7- 同居系统指令");
+            $sender->sendMessage("§e/mebpre help §7- 称号系统指令");
+            $sender->sendMessage("§e/mebshop help §7- 商店系统指令");
+            $sender->sendMessage("§e/mw help §7- 多世界系统指令");
+            $sender->sendMessage("§e/mebop help §7- OP管理指令");
+            $sender->sendMessage("§e/mebvip help §7- VIP系统指令");
+            $sender->sendMessage("§e/mebsvip help §7- SVIP系统指令");
+            $sender->sendMessage("§e/mebui §7- 打开图形界面");
             $sender->sendMessage("§c---------------------------");
             return true;
         }

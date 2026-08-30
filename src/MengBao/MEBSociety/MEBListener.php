@@ -51,7 +51,6 @@ class MEBListener implements Listener
                 "营地召集倍数" => 1,  //op5倍\svip2倍（每人
                 "营地权力" => array(
                     "所有权力" => false,
-                    "设置营地传送点" => false,
                     "召集营地成员" => false,
                     "审核入营申请" => false,
                     "踢人" => false,
